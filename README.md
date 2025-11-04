@@ -1,4 +1,4 @@
-# Priorityx: Entity prioritization and escalation detection using GLMM statistical models.
+# Priorityx: Entity prioritization and escalation detection using GLMM statistical models
 
 ## Installation
 
@@ -30,7 +30,7 @@ plot_priority_matrix(results, entity_name="Service", save_plot=True)
 - GLMM-based priority classification (Q1-Q4 quadrants)
 - Transition detection over time
 - Movement tracking
-- Visualization suite
+- Visualization
 
 ## Use Cases
 

@@ -1,6 +1,6 @@
 """priorityx: Entity prioritization and escalation detection using GLMM statistical models."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # API will be imported
 

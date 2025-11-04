@@ -29,24 +29,33 @@ def bump_version(version, part):
 
 
 def update_version_file(new_version):
-    """Update version in pyproject.toml."""
+    """Update version in pyproject.toml and __init__.py."""
+    # update pyproject.toml
     pyproject_path = Path("pyproject.toml")
     content = pyproject_path.read_text()
-
-    # update version line
     new_content = re.sub(
         r'^version\s*=\s*"[^"]+"',
         f'version = "{new_version}"',
         content,
         flags=re.MULTILINE
     )
-
     pyproject_path.write_text(new_content)
     print(f"Updated pyproject.toml to v{new_version}")
 
+    # update src/priorityx/__init__.py
+    init_path = Path("src/priorityx/__init__.py")
+    init_content = init_path.read_text()
+    new_init_content = re.sub(
+        r'__version__\s*=\s*"[^"]+"',
+        f'__version__ = "{new_version}"',
+        init_content
+    )
+    init_path.write_text(new_init_content)
+    print(f"Updated __init__.py to v{new_version}")
 
-def git_tag_and_push(version):
-    """Create git tag and push."""
+
+def git_commit_and_tag(version):
+    """Commit version change, create tag, and push."""
     tag = f"v{version}"
 
     # check if tag exists
@@ -60,15 +69,24 @@ def git_tag_and_push(version):
         print(f"Tag {tag} already exists")
         return
 
+    # commit version changes
+    subprocess.run(["git", "add", "pyproject.toml", "src/priorityx/__init__.py"], check=True)
+    subprocess.run(
+        ["git", "commit", "-m", f"Bump version to {version}"],
+        check=True
+    )
+    print(f"Committed version changes")
+
     # create tag
     subprocess.run(["git", "tag", tag], check=True)
     print(f"Created tag {tag}")
 
     # push
-    response = input(f"Push tag {tag} to remote? (y/n): ")
+    response = input(f"Push commit and tag {tag} to remote? (y/n): ")
     if response.lower() == "y":
+        subprocess.run(["git", "push"], check=True)
         subprocess.run(["git", "push", "origin", tag], check=True)
-        print(f"Pushed {tag}")
+        print(f"Pushed commit and tag {tag}")
 
 
 def main():
@@ -104,11 +122,11 @@ def main():
     # update files
     update_version_file(new_version)
 
-    # git tag
-    git_tag_and_push(new_version)
+    # commit and tag
+    git_commit_and_tag(new_version)
 
-    print(f"\nDone! Version {new_version} ready.")
-    print(f"Next: git push to trigger release workflow")
+    print(f"\nDone! Version {new_version} released.")
+    print(f"GitHub Actions will publish to PyPI automatically.")
 
 
 if __name__ == "__main__":

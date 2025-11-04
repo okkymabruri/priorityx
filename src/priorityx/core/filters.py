@@ -99,7 +99,7 @@ def filter_sparse_entities(
     n_filtered = n_before - n_after
 
     if n_filtered > 0:
-        print(f"  Filtered {n_filtered} sparse entities")
+        print(f"Filtered {n_filtered} sparse entities")
 
     return df
 

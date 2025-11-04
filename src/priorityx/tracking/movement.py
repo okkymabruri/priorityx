@@ -263,9 +263,7 @@ def track_cumulative_movement(
         }
         return empty_df, metadata
 
-    print(f"\n{'=' * 80}")
-    print(f"CUMULATIVE MOVEMENT TRACKING")
-    print(f"{'=' * 80}")
+    print("\nCUMULATIVE MOVEMENT TRACKING")
 
     # import fit_priority_matrix
     from ..core.glmm import fit_priority_matrix
@@ -284,7 +282,7 @@ def track_cumulative_movement(
         fe_p=fe_p,
     )
 
-    print(f"✓ Global baseline established for {len(global_results)} entities")
+    print(f"Global baseline: {len(global_results)} entities")
 
     # create global baseline lookup
     global_baseline = {}
@@ -302,7 +300,7 @@ def track_cumulative_movement(
 
     # get endpoint (last quarter)
     final_quarter_name, final_quarter_date = quarter_schedule[-1]
-    print(f"  Analysis endpoint: {final_quarter_name} ({final_quarter_date})")
+    print(f"Analysis endpoint: {final_quarter_name} ({final_quarter_date})")
 
     # calculate valid entities based on cumulative totals up to endpoint
     endpoint_pl = pl.lit(final_quarter_date).str.to_date()
@@ -395,7 +393,7 @@ def track_cumulative_movement(
                 fe_p=fe_p,
             )
 
-            print(f"✓ {len(period_results)} entities")
+            print(f"{len(period_results)} entities")
 
             # merge with global baseline
             for _, row in period_results.iterrows():
@@ -462,15 +460,15 @@ def track_cumulative_movement(
         movement_df["period_quadrant"] != movement_df["global_quadrant"]
     )
 
-    print(f"✓ Tracked {len(movement_df)} entity-quarter observations")
-    print(f"  Entities tracked: {movement_df['entity'].nunique()}")
-    print(f"  Periods covered: {movement_df['quarter'].nunique()}")
+    print(f"Tracked {len(movement_df)} entity-quarter observations")
+    print(f"Entities tracked: {movement_df['entity'].nunique()}")
+    print(f"Periods covered: {movement_df['quarter'].nunique()}")
 
     divergence_count = movement_df["quadrant_differs"].sum()
     divergence_pct = (
         (divergence_count / len(movement_df) * 100) if len(movement_df) > 0 else 0
     )
-    print(f"  Quadrant divergences: {divergence_count} ({divergence_pct:.1f}%)")
+    print(f"Quadrant divergences: {divergence_count} ({divergence_pct:.1f}%)")
 
     # metadata
     metadata = {

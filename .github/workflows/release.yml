@@ -1,0 +1,97 @@
+name: Publish Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build package
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+
+    - name: Verify version matches tag
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        TAG_VERSION=${GITHUB_REF#refs/tags/v}
+        FILE_VERSION=$(grep -Pom1 '^\s*version\s*=\s*"\K[^"]+' pyproject.toml)
+        if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
+          echo "Version mismatch!"
+          echo "   Tag: v$TAG_VERSION"
+          echo "   File: $FILE_VERSION"
+          exit 1
+        fi
+        echo "Version check passed: $FILE_VERSION"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Build distributions
+      run: |
+        uv build
+        ls -lah dist/
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v5
+      with:
+        name: python-package-distributions
+        path: dist/
+        retention-days: 1
+        if-no-files-found: error
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v')
+
+    environment:
+      name: pypi
+      url: https://pypi.org/p/priorityx
+
+    permissions:
+      id-token: write
+
+    steps:
+    - name: Download distributions
+      uses: actions/download-artifact@v5
+      with:
+        name: python-package-distributions
+        path: dist/
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        verbose: true
+        print-hash: true
+        skip-existing: true
+        attestations: true
+
+  create-release:
+    name: Create GitHub Release
+    needs: [publish-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        generate_release_notes: true
+        draft: false
+        prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') }}

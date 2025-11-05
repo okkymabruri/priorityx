@@ -1,4 +1,8 @@
 # Version management for priorityx
+# Semantic versioning: MAJOR.MINOR.PATCH
+# - patch: bug fixes (0.1.1 -> 0.1.2)
+# - minor: new features, backward compatible (0.1.2 -> 0.2.0)
+# - major: breaking changes (0.2.0 -> 1.0.0)
 
 .PHONY: release release-patch release-minor release-major test
 

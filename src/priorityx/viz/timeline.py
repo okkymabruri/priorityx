@@ -92,18 +92,22 @@ def plot_transition_timeline(
 
     # aggregate quarters based on granularity
     if x_axis_granularity == "semiannual":
+
         def quarter_to_semester(q_str):
             if "-Q" in q_str:
                 year, quarter = q_str.split("-Q")
                 semester = "H1" if int(quarter) <= 2 else "H2"
                 return f"{year}-{semester}"
             return q_str
+
         df["period"] = df["transition_quarter"].apply(quarter_to_semester)
     elif x_axis_granularity == "yearly":
+
         def quarter_to_year(q_str):
             if "-Q" in q_str:
                 return q_str.split("-Q")[0]
             return q_str
+
         df["period"] = df["transition_quarter"].apply(quarter_to_year)
     else:  # quarterly
         df["period"] = df["transition_quarter"]
@@ -133,10 +137,12 @@ def plot_transition_timeline(
         # sort by: most recent activity, then risk level
         entity_max_period = df.groupby("entity")["period"].max()
         period_rank = {p: i for i, p in enumerate(periods)}
-        entity_priority = pd.DataFrame({
-            "latest_period": entity_max_period,
-            "period_rank": entity_max_period.map(period_rank),
-        })
+        entity_priority = pd.DataFrame(
+            {
+                "latest_period": entity_max_period,
+                "period_rank": entity_max_period.map(period_rank),
+            }
+        )
 
         # get risk level in most recent period
         def get_latest_risk(entity):
@@ -146,8 +152,7 @@ def plot_transition_timeline(
 
         entity_priority["risk_order"] = entity_priority.index.map(get_latest_risk)
         entity_priority = entity_priority.sort_values(
-            ["period_rank", "risk_order"],
-            ascending=[False, True]
+            ["period_rank", "risk_order"], ascending=[False, True]
         )
     else:
         # sort by count/volume
@@ -169,9 +174,9 @@ def plot_transition_timeline(
     # color map for risk levels
     risk_colors = {
         "critical": "#d62728",  # red
-        "high": "#ff7f0e",      # orange
-        "medium": "#ffdd57",    # yellow
-        "low": "#2ca02c",       # green
+        "high": "#ff7f0e",  # orange
+        "medium": "#ffdd57",  # yellow
+        "low": "#2ca02c",  # green
     }
 
     # create figure
@@ -241,8 +246,14 @@ def plot_transition_timeline(
     for risk_level in ["critical", "high", "medium", "low"]:
         if risk_level in df["risk_level"].values:
             legend_elements.append(
-                plt.scatter([], [], s=100, c=risk_colors[risk_level],
-                           alpha=0.8, label=risk_level.capitalize())
+                plt.scatter(
+                    [],
+                    [],
+                    s=100,
+                    c=risk_colors[risk_level],
+                    alpha=0.8,
+                    label=risk_level.capitalize(),
+                )
             )
 
     if legend_elements:
@@ -264,7 +275,7 @@ def plot_transition_timeline(
     if title:
         ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
 
-    ax.tick_params(axis='both', which='major', labelsize=10)
+    ax.tick_params(axis="both", which="major", labelsize=10)
     plt.tight_layout()
 
     # save plot if requested

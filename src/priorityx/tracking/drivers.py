@@ -1,6 +1,5 @@
 """Transition driver analysis for identifying root causes of quadrant transitions."""
 
-import polars as pl
 import pandas as pd
 from typing import Dict, List, Optional, Tuple
 from collections import Counter
@@ -24,7 +23,9 @@ def _calculate_quarter_dates(quarter_str: str) -> Tuple[str, str]:
     """
     match = re.match(r"(\d{4})-Q(\d)", quarter_str)
     if not match:
-        raise ValueError(f"Invalid quarter format: {quarter_str}. Use 'YYYY-QN' (e.g., '2024-Q3')")
+        raise ValueError(
+            f"Invalid quarter format: {quarter_str}. Use 'YYYY-QN' (e.g., '2024-Q3')"
+        )
 
     year = int(match.group(1))
     quarter = int(match.group(2))
@@ -32,9 +33,9 @@ def _calculate_quarter_dates(quarter_str: str) -> Tuple[str, str]:
     # quarter start dates
     quarter_starts = {
         1: (year - 1, 10, 1),  # Q1 starts Oct 1 of prev year
-        2: (year, 1, 1),       # Q2 starts Jan 1
-        3: (year, 4, 1),       # Q3 starts Apr 1
-        4: (year, 7, 1),       # Q4 starts Jul 1
+        2: (year, 1, 1),  # Q2 starts Jan 1
+        3: (year, 4, 1),  # Q3 starts Apr 1
+        4: (year, 7, 1),  # Q4 starts Jul 1
     }
 
     if quarter not in quarter_starts:
@@ -112,7 +113,11 @@ def classify_priority(
         else:
             spike_axis = "Y"  # default for explosions
 
-        return 1, f"Critical: Extreme movement (dX={x_delta:.2f}, dY={y_delta:.2f})", spike_axis
+        return (
+            1,
+            f"Critical: Extreme movement (dX={x_delta:.2f}, dY={y_delta:.2f})",
+            spike_axis,
+        )
 
     # priority 2: investigate
     if abs(x_delta) > 0.15 or abs(y_delta) > 0.15:
@@ -134,7 +139,7 @@ def classify_priority(
 
 def extract_transition_drivers(
     movement_df: pd.DataFrame,
-    df_raw: pl.DataFrame | pl.LazyFrame,
+    df_raw: pd.DataFrame,
     entity_name: str,
     quarter_from: str,
     quarter_to: str,
@@ -151,7 +156,7 @@ def extract_transition_drivers(
 
     Args:
         movement_df: Output from track_cumulative_movement()
-        df_raw: Raw event data (polars DataFrame)
+        df_raw: Raw event data (pandas DataFrame)
         entity_name: Entity to analyze
         quarter_from: Starting quarter (e.g., "2024-Q2")
         quarter_to: Ending quarter (e.g., "2024-Q3")
@@ -183,8 +188,8 @@ def extract_transition_drivers(
         ...     subcategory_cols=["topic", "product"]
         ... )
     """
-    if isinstance(df_raw, pl.LazyFrame):
-        df_raw = df_raw.collect()
+    df_raw = df_raw.copy()
+    df_raw[timestamp_col] = pd.to_datetime(df_raw[timestamp_col])
 
     # get transition data from movement_df
     entity_data = movement_df[movement_df["entity"] == entity_name]
@@ -266,10 +271,13 @@ def extract_transition_drivers(
 
     priority_classification = {
         "priority": priority,
-        "priority_name": {1: "Critical", 2: "Investigate", 3: "Monitor", 4: "Low"}[priority],
+        "priority_name": {1: "Critical", 2: "Investigate", 3: "Monitor", 4: "Low"}[
+            priority
+        ],
         "trigger_reason": reason,
         "spike_axis": spike_axis,
-        "is_borderline": abs(to_row["period_x"]) <= 0.1 or abs(to_row["period_y"]) <= 0.1,
+        "is_borderline": abs(to_row["period_x"]) <= 0.1
+        or abs(to_row["period_y"]) <= 0.1,
     }
 
     # initialize result
@@ -282,22 +290,33 @@ def extract_transition_drivers(
     # subcategory drivers (optional)
     if subcategory_cols:
         result["subcategory_drivers"] = _analyze_subcategory_drivers(
-            df_raw, entity_name, entity_col, timestamp_col,
-            quarter_from, quarter_to, subcategory_cols, absolute_delta
+            df_raw,
+            entity_name,
+            entity_col,
+            timestamp_col,
+            quarter_from,
+            quarter_to,
+            subcategory_cols,
+            absolute_delta,
         )
 
     # keyword drivers (optional)
     if text_col:
         result["keyword_drivers"] = _analyze_keyword_drivers(
-            df_raw, entity_name, entity_col, timestamp_col,
-            quarter_from, quarter_to, text_col
+            df_raw,
+            entity_name,
+            entity_col,
+            timestamp_col,
+            quarter_from,
+            quarter_to,
+            text_col,
         )
 
     return result
 
 
 def _analyze_subcategory_drivers(
-    df_raw: pl.DataFrame,
+    df_raw: pd.DataFrame,
     entity_name: str,
     entity_col: str,
     timestamp_col: str,
@@ -311,17 +330,17 @@ def _analyze_subcategory_drivers(
     to_start, to_end = _calculate_quarter_dates(quarter_to)
 
     # filter to entity and quarters
-    entity_data = df_raw.filter(pl.col(entity_col) == entity_name)
+    entity_data = df_raw[df_raw[entity_col] == entity_name]
 
-    from_data = entity_data.filter(
-        (pl.col(timestamp_col) >= pl.lit(from_start).str.to_date())
-        & (pl.col(timestamp_col) < pl.lit(from_end).str.to_date())
-    )
+    from_data = entity_data[
+        (entity_data[timestamp_col] >= pd.Timestamp(from_start))
+        & (entity_data[timestamp_col] < pd.Timestamp(from_end))
+    ]
 
-    to_data = entity_data.filter(
-        (pl.col(timestamp_col) >= pl.lit(to_start).str.to_date())
-        & (pl.col(timestamp_col) < pl.lit(to_end).str.to_date())
-    )
+    to_data = entity_data[
+        (entity_data[timestamp_col] >= pd.Timestamp(to_start))
+        & (entity_data[timestamp_col] < pd.Timestamp(to_end))
+    ]
 
     drivers_by_subcategory = {}
 
@@ -331,16 +350,18 @@ def _analyze_subcategory_drivers(
 
         # aggregate by subcategory
         from_subcat = (
-            from_data.group_by(subcat_col)
-            .agg(pl.len().alias("count"))
-            .sort("count", descending=True)
-        ).to_pandas()
+            from_data.groupby(subcat_col)
+            .size()
+            .reset_index(name="count")
+            .sort_values("count", ascending=False)
+        )
 
         to_subcat = (
-            to_data.group_by(subcat_col)
-            .agg(pl.len().alias("count"))
-            .sort("count", descending=True)
-        ).to_pandas()
+            to_data.groupby(subcat_col)
+            .size()
+            .reset_index(name="count")
+            .sort_values("count", ascending=False)
+        )
 
         # merge and calculate deltas
         comparison = pd.merge(
@@ -369,26 +390,27 @@ def _analyze_subcategory_drivers(
 
         # get top 3 by absolute delta
         top_drivers = (
-            comparison[comparison["delta"] > 0]
-            .nlargest(3, "delta")
-            .to_dict("records")
+            comparison[comparison["delta"] > 0].nlargest(3, "delta").to_dict("records")
         )
 
         drivers_list = []
         for driver in top_drivers:
-            drivers_list.append({
-                "name": driver[subcat_col],
-                "count_from": int(driver["count_from"]),
-                "count_to": int(driver["count_to"]),
-                "delta": int(driver["delta"]),
-                "percent_of_change": round(driver["percent_of_change"], 1),
-                "driver_type": driver["driver_type"],
-            })
+            drivers_list.append(
+                {
+                    "name": driver[subcat_col],
+                    "count_from": int(driver["count_from"]),
+                    "count_to": int(driver["count_to"]),
+                    "delta": int(driver["delta"]),
+                    "percent_of_change": round(driver["percent_of_change"], 1),
+                    "driver_type": driver["driver_type"],
+                }
+            )
 
         # calculate explanation power
         top_explain_pct = (
             sum([d["delta"] for d in drivers_list]) / period_increase * 100
-            if period_increase > 0 else 0
+            if period_increase > 0
+            else 0
         )
 
         drivers_by_subcategory[subcat_col] = {
@@ -400,7 +422,7 @@ def _analyze_subcategory_drivers(
 
 
 def _analyze_keyword_drivers(
-    df_raw: pl.DataFrame,
+    df_raw: pd.DataFrame,
     entity_name: str,
     entity_col: str,
     timestamp_col: str,
@@ -414,17 +436,17 @@ def _analyze_keyword_drivers(
     to_start, to_end = _calculate_quarter_dates(quarter_to)
 
     # filter to entity and quarters
-    entity_data = df_raw.filter(pl.col(entity_col) == entity_name)
+    entity_data = df_raw[df_raw[entity_col] == entity_name]
 
-    from_data = entity_data.filter(
-        (pl.col(timestamp_col) >= pl.lit(from_start).str.to_date())
-        & (pl.col(timestamp_col) < pl.lit(from_end).str.to_date())
-    )
+    from_data = entity_data[
+        (entity_data[timestamp_col] >= pd.Timestamp(from_start))
+        & (entity_data[timestamp_col] < pd.Timestamp(from_end))
+    ]
 
-    to_data = entity_data.filter(
-        (pl.col(timestamp_col) >= pl.lit(to_start).str.to_date())
-        & (pl.col(timestamp_col) < pl.lit(to_end).str.to_date())
-    )
+    to_data = entity_data[
+        (entity_data[timestamp_col] >= pd.Timestamp(to_start))
+        & (entity_data[timestamp_col] < pd.Timestamp(to_end))
+    ]
 
     def extract_bigrams(text: str) -> List[str]:
         """Extract meaningful bigrams from text."""
@@ -432,29 +454,56 @@ def _analyze_keyword_drivers(
             return []
 
         text = str(text).lower()
-        words = re.findall(r'\b\w+\b', text)
+        words = re.findall(r"\b\w+\b", text)
 
         # basic stopwords (language-agnostic)
         stopwords = {
-            'the', 'is', 'in', 'to', 'of', 'and', 'a', 'an', 'with', 'that', 'this',
-            'has', 'have', 'been', 'was', 'were', 'are', 'will', 'would', 'could',
-            'for', 'from', 'by', 'on', 'at', 'as', 'be', 'it', 'or', 'not'
+            "the",
+            "is",
+            "in",
+            "to",
+            "of",
+            "and",
+            "a",
+            "an",
+            "with",
+            "that",
+            "this",
+            "has",
+            "have",
+            "been",
+            "was",
+            "were",
+            "are",
+            "will",
+            "would",
+            "could",
+            "for",
+            "from",
+            "by",
+            "on",
+            "at",
+            "as",
+            "be",
+            "it",
+            "or",
+            "not",
         }
 
         # filter short words and stopwords
         words = [w for w in words if len(w) > 2 and w not in stopwords]
 
         # create bigrams
-        bigrams = [f"{words[i]} {words[i+1]}" for i in range(len(words) - 1)]
+        bigrams = [f"{words[i]} {words[i + 1]}" for i in range(len(words) - 1)]
 
         # filter numeric-only bigrams
-        bigrams = [b for b in bigrams if not all(c.isdigit() or c == ' ' for c in b)]
+        bigrams = [b for b in bigrams if not all(c.isdigit() or c == " " for c in b)]
 
         return bigrams
 
     # extract bigrams
-    from_text = from_data.select(text_col).to_series().to_list()
-    to_text = to_data.select(text_col).to_series().to_list()
+    from_text = from_data[text_col].tolist()
+    to_text = to_data[text_col].tolist()
 
     from_bigrams = []
     for text in from_text:
@@ -476,22 +525,26 @@ def _analyze_keyword_drivers(
         delta = to_count - from_count
         if delta > 0:
             bigram_changes[bigram] = {
-                'from': from_count,
-                'to': to_count,
-                'delta': delta
+                "from": from_count,
+                "to": to_count,
+                "delta": delta,
             }
 
     # get top N emerging bigrams
-    top_bigrams = sorted(bigram_changes.items(), key=lambda x: x[1]['delta'], reverse=True)[:top_n]
+    top_bigrams = sorted(
+        bigram_changes.items(), key=lambda x: x[1]["delta"], reverse=True
+    )[:top_n]
 
     keyword_drivers = []
     for bigram, stats in top_bigrams:
-        keyword_drivers.append({
-            'bigram': bigram,
-            'frequency_from': stats['from'],
-            'frequency_to': stats['to'],
-            'delta': stats['delta']
-        })
+        keyword_drivers.append(
+            {
+                "bigram": bigram,
+                "frequency_from": stats["from"],
+                "frequency_to": stats["to"],
+                "delta": stats["delta"],
+            }
+        )
 
     return keyword_drivers
 
@@ -522,7 +575,7 @@ def display_transition_drivers(analysis: Dict, show_keywords: bool = False) -> N
     print(f"Period: {trans['from_quarter']} -> {trans['to_quarter']}")
     print(f"Quadrant: {trans['from_quadrant']} -> {trans['to_quadrant']}")
 
-    if trans['quadrant_changed']:
+    if trans["quadrant_changed"]:
         print("Status: Quadrant transition detected")
     else:
         print("Status: Within-quadrant movement")
@@ -537,10 +590,16 @@ def display_transition_drivers(analysis: Dict, show_keywords: bool = False) -> N
     # magnitude
     print()
     print("Magnitude:")
-    print(f"  Volume: {vol['count_from']:,} -> {vol['count_to']:,} "
-          f"(delta {vol['absolute_delta']:+,}, {vol['percent_change']:+.1f}%)")
-    print(f"  X-axis: {vol['x_from']:.2f} -> {vol['x_to']:.2f} (delta {vol['x_delta']:+.2f})")
-    print(f"  Y-axis: {growth['y_from']:.2f} -> {growth['y_to']:.2f} (delta {growth['y_delta']:+.2f})")
+    print(
+        f"  Volume: {vol['count_from']:,} -> {vol['count_to']:,} "
+        f"(delta {vol['absolute_delta']:+,}, {vol['percent_change']:+.1f}%)"
+    )
+    print(
+        f"  X-axis: {vol['x_from']:.2f} -> {vol['x_to']:.2f} (delta {vol['x_delta']:+.2f})"
+    )
+    print(
+        f"  Y-axis: {growth['y_from']:.2f} -> {growth['y_to']:.2f} (delta {growth['y_delta']:+.2f})"
+    )
 
     # subcategory drivers
     if "subcategory_drivers" in analysis:
@@ -550,11 +609,15 @@ def display_transition_drivers(analysis: Dict, show_keywords: bool = False) -> N
 
             if top_drivers:
                 print()
-                print(f"Top drivers by {subcat_col} (explain {explain_pct:.1f}% of change):")
+                print(
+                    f"Top drivers by {subcat_col} (explain {explain_pct:.1f}% of change):"
+                )
                 for i, driver in enumerate(top_drivers, 1):
                     print(f"  {i}. {driver['name']}")
-                    print(f"     {driver['count_from']:,} -> {driver['count_to']:,} "
-                          f"(delta {driver['delta']:+,}, {driver['percent_of_change']:.1f}%)")
+                    print(
+                        f"     {driver['count_from']:,} -> {driver['count_to']:,} "
+                        f"(delta {driver['delta']:+,}, {driver['percent_of_change']:.1f}%)"
+                    )
                     print(f"     Type: {driver['driver_type']}")
 
     # keyword drivers
@@ -564,6 +627,8 @@ def display_transition_drivers(analysis: Dict, show_keywords: bool = False) -> N
             print()
             print("Top emerging keywords:")
             for i, kw in enumerate(keywords[:5], 1):
-                print(f"  {i}. '{kw['bigram']}' ({kw['frequency_from']} -> {kw['frequency_to']}, delta +{kw['delta']})")
+                print(
+                    f"  {i}. '{kw['bigram']}' ({kw['frequency_from']} -> {kw['frequency_to']}, delta +{kw['delta']})"
+                )
 
     print()

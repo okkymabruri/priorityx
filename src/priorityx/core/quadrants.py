@@ -2,10 +2,7 @@
 
 
 def classify_quadrant(
-    intercept: float,
-    slope: float,
-    count: float = None,
-    min_q1_count: int = 50
+    intercept: float, slope: float, count: float = None, min_q1_count: int = 50
 ) -> str:
     """
     Classify entity into priority quadrant.
@@ -32,7 +29,9 @@ def classify_quadrant(
         return "Q4"  # low priority
 
 
-def get_quadrant_label(quadrant_code: str, x_label: str = "Volume", y_label: str = "Growth") -> str:
+def get_quadrant_label(
+    quadrant_code: str, x_label: str = "Volume", y_label: str = "Growth"
+) -> str:
     """Get human-readable label for quadrant code.
 
     Args:

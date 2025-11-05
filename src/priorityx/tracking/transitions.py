@@ -65,9 +65,7 @@ def classify_transition_risk(from_quadrant: str, to_quadrant: str) -> Tuple[str,
     }
 
     # medium risk transitions
-    medium_risk_transitions = {
-        ("Q4", "Q3"): "Persistent issue losing volume (watch)"
-    }
+    medium_risk_transitions = {("Q4", "Q3"): "Persistent issue losing volume (watch)"}
 
     # low risk transitions (improvements)
     low_risk_transitions = {

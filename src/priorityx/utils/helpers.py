@@ -34,12 +34,12 @@ def display_quadrant_summary(
     if min_count > 0:
         print(f"(Filtered to ≥{min_count} count)")
 
-    print("\nQuadrant Breakdown:")
-    print("-" * 40)
+    print()
+    print("Quadrant Breakdown:")
 
     quadrant_order = ["Q1", "Q2", "Q3", "Q4"]
     quadrant_labels = {
-        "Q1": "Q1 (Crisis - High volume, High growth)",
+        "Q1": "Q1 (Critical - High volume, High growth)",
         "Q2": "Q2 (Investigate - Low volume, High growth)",
         "Q3": "Q3 (Monitor - Low volume, Low growth)",
         "Q4": "Q4 (Low Priority - High volume, Low growth)",
@@ -92,7 +92,6 @@ def display_transition_summary(
             group = risk_groups.get_group(risk_level)
             print()
             print(f"{risk_level.upper()} RISK TRANSITIONS ({len(group)} total):")
-            print("-" * 40)
 
             # show up to 5 examples
             for _, transition in group.head(5).iterrows():
@@ -158,8 +157,8 @@ def display_movement_summary(
         )
         top_movers = entity_total_movement.nlargest(5, "total")
 
-        print(f"\nTop {entity_name.lower()}s by total movement:")
-        print("-" * 40)
+        print()
+        print(f"Top {entity_name.lower()}s by total movement:")
         for entity, row in top_movers.iterrows():
             print(f"  {entity}: {row['total']:.2f} (X: {row['x_delta']:.2f}, Y: {row['y_delta']:.2f})")
 

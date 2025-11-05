@@ -2868,7 +2868,7 @@ wheels = [
 
 [[package]]
 name = "priorityx"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "adjusttext" },
@@ -2884,6 +2884,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "jupyter" },
+    { name = "priorityx" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -2902,6 +2903,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "jupyter", specifier = ">=1.1.1" },
+    { name = "priorityx", editable = "." },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "pytest-cov", specifier = ">=4.0" },
     { name = "ruff", specifier = ">=0.14.3" },

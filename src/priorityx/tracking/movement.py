@@ -4,7 +4,6 @@ from datetime import timedelta
 from typing import Optional, Sequence, Union
 
 import pandas as pd
-import polars as pl
 
 
 def _is_quarter_start(ts: pd.Timestamp) -> bool:
@@ -85,30 +84,33 @@ def _build_quarter_schedule_from_range(
 
 
 def _build_default_quarter_schedule(
-    df: pl.DataFrame, timestamp_col: str
+    df: pd.DataFrame, timestamp_col: str
 ) -> list[tuple[str, str]]:
     """
     Create default quarter schedule spanning the dataset.
 
     Args:
-        df: Input polars DataFrame
+        df: Input pandas DataFrame
         timestamp_col: Column name for timestamp
 
     Returns:
         List of (label, exclusive_end_date) tuples
     """
-    if timestamp_col not in df.columns or df.height == 0:
+    if timestamp_col not in df.columns or len(df) == 0:
         return []
+
+    df = df.copy()
+    df[timestamp_col] = pd.to_datetime(df[timestamp_col])
 
     min_date = df[timestamp_col].min()
     max_date = df[timestamp_col].max()
 
-    if min_date is None or max_date is None:
+    if pd.isna(min_date) or pd.isna(max_date):
         return []
 
-    start_ts = pd.Timestamp(min_date).to_period("Q").to_timestamp(how="start")
+    start_ts = min_date.to_period("Q").to_timestamp(how="start")
     # exclusive boundary: first day of quarter following max_date
-    max_quarter_start = pd.Timestamp(max_date).to_period("Q").to_timestamp(how="start")
+    max_quarter_start = max_date.to_period("Q").to_timestamp(how="start")
     end_ts = _next_quarter_start(max_quarter_start)
 
     return _build_quarter_schedule_from_range(
@@ -118,7 +120,7 @@ def _build_default_quarter_schedule(
 
 def normalize_quarter_schedule(
     quarters: Optional[Sequence[Union[tuple[str, str], str]]],
-    df: pl.DataFrame,
+    df: pd.DataFrame,
     timestamp_col: str,
 ) -> list[tuple[str, str]]:
     """
@@ -131,7 +133,7 @@ def normalize_quarter_schedule(
 
     Args:
         quarters: Quarter specification (see formats above)
-        df: Input polars DataFrame
+        df: Input pandas DataFrame
         timestamp_col: Column name for timestamp
 
     Returns:
@@ -180,7 +182,7 @@ def normalize_quarter_schedule(
 
 
 def track_cumulative_movement(
-    df: pl.DataFrame | pl.LazyFrame,
+    df: pd.DataFrame,
     entity_col: str,
     timestamp_col: str,
     quarters: Optional[Sequence[Union[tuple[str, str], str]]] = None,
@@ -201,9 +203,9 @@ def track_cumulative_movement(
     3. Quarter-by-quarter tracking: Track X/Y movement for valid entities
 
     Args:
-        df: Input polars DataFrame or LazyFrame
+        df: Input pandas DataFrame
         entity_col: Column name for entity identifier
-        timestamp_col: Column name for timestamp (Date type)
+        timestamp_col: Column name for timestamp (datetime type)
         quarters: Quarter specification (see normalize_quarter_schedule)
         min_total_count: Minimum total count for inclusion (default: 20)
         decline_window_quarters: Max quarters after last observation (default: 6)
@@ -230,9 +232,9 @@ def track_cumulative_movement(
         ...     quarters=["2024-01-01", "2025-01-01"]
         ... )
     """
-    # ensure dataframe
-    if isinstance(df, pl.LazyFrame):
-        df = df.collect()
+    # ensure datetime type
+    df = df.copy()
+    df[timestamp_col] = pd.to_datetime(df[timestamp_col])
 
     # normalize quarter schedule
     quarter_schedule = normalize_quarter_schedule(quarters, df, timestamp_col)
@@ -303,45 +305,37 @@ def track_cumulative_movement(
     print(f"Analysis endpoint: {final_quarter_name} ({final_quarter_date})")
 
     # calculate valid entities based on cumulative totals up to endpoint
-    endpoint_pl = pl.lit(final_quarter_date).str.to_date()
-    cumulative_up_to_endpoint = df.filter(pl.col(timestamp_col) < endpoint_pl)
+    cumulative_up_to_endpoint = df[df[timestamp_col] < pd.Timestamp(final_quarter_date)]
 
     # apply filters in same order as fit_priority_matrix for consistency
 
     # step 1: filter by min_total_count
-    endpoint_totals = cumulative_up_to_endpoint.group_by(entity_col).agg(
-        pl.len().alias("total")
+    endpoint_totals = (
+        cumulative_up_to_endpoint.groupby(entity_col).size().reset_index(name="total")
     )
-    entities_above_threshold = endpoint_totals.filter(
-        pl.col("total") >= min_total_count
-    )[entity_col]
-    cumulative_up_to_endpoint = cumulative_up_to_endpoint.filter(
-        pl.col(entity_col).is_in(entities_above_threshold)
-    )
+    entities_above_threshold = endpoint_totals[
+        endpoint_totals["total"] >= min_total_count
+    ][entity_col]
+    cumulative_up_to_endpoint = cumulative_up_to_endpoint[
+        cumulative_up_to_endpoint[entity_col].isin(entities_above_threshold)
+    ]
 
     # step 2: apply decline_window filter
     if decline_window_quarters > 0:
-        dataset_max_datetime = cumulative_up_to_endpoint.select(
-            pl.col(timestamp_col).max()
-        ).item()
-        dataset_max_date = (
-            dataset_max_datetime.date()
-            if hasattr(dataset_max_datetime, "date")
-            else dataset_max_datetime
-        )
-        decline_cutoff = dataset_max_date - timedelta(
-            days=decline_window_quarters * 91
-        )
+        dataset_max_date = cumulative_up_to_endpoint[timestamp_col].max()
+        decline_cutoff = dataset_max_date - timedelta(days=decline_window_quarters * 91)
 
-        last_observation_at_endpoint = cumulative_up_to_endpoint.group_by(
-            entity_col
-        ).agg(pl.col(timestamp_col).max().alias("last_date"))
-        stale_entities_at_endpoint = last_observation_at_endpoint.filter(
-            pl.col("last_date").cast(pl.Date) < pl.lit(decline_cutoff).cast(pl.Date)
-        )[entity_col]
-        cumulative_up_to_endpoint = cumulative_up_to_endpoint.filter(
-            ~pl.col(entity_col).is_in(stale_entities_at_endpoint)
+        last_observation_at_endpoint = (
+            cumulative_up_to_endpoint.groupby(entity_col)[timestamp_col]
+            .max()
+            .reset_index(name="last_date")
         )
+        stale_entities_at_endpoint = last_observation_at_endpoint[
+            last_observation_at_endpoint["last_date"] < decline_cutoff
+        ][entity_col]
+        cumulative_up_to_endpoint = cumulative_up_to_endpoint[
+            ~cumulative_up_to_endpoint[entity_col].isin(stale_entities_at_endpoint)
+        ]
         n_stale = len(stale_entities_at_endpoint)
         if n_stale > 0:
             print(
@@ -350,9 +344,7 @@ def track_cumulative_movement(
             )
 
     # get final entity list after filters
-    valid_entity_list = (
-        cumulative_up_to_endpoint.select(entity_col).unique().to_series().to_list()
-    )
+    valid_entity_list = cumulative_up_to_endpoint[entity_col].unique().tolist()
 
     n_valid_at_endpoint = len(valid_entity_list)
     print(
@@ -369,11 +361,10 @@ def track_cumulative_movement(
         print(f"  [{quarter_name}] Running GLMM on cumulative data...", end=" ")
 
         # filter to cumulative data up to this quarter
-        end_pl = pl.lit(end_date_str).str.to_date()
-        cumulative_df = df.filter(
-            (pl.col(timestamp_col) < end_pl)
-            & (pl.col(entity_col).is_in(valid_entity_list))
-        )
+        cumulative_df = df[
+            (df[timestamp_col] < pd.Timestamp(end_date_str))
+            & (df[entity_col].isin(valid_entity_list))
+        ]
 
         if len(cumulative_df) < 100:
             print(f"⚠ Insufficient data ({len(cumulative_df)} rows)")
@@ -451,9 +442,7 @@ def track_cumulative_movement(
     # calculate deltas
     movement_df["x_delta"] = movement_df.groupby("entity")["period_x"].diff()
     movement_df["y_delta"] = movement_df.groupby("entity")["period_y"].diff()
-    movement_df["volume_delta"] = movement_df.groupby("entity")[
-        "count_to_date"
-    ].diff()
+    movement_df["volume_delta"] = movement_df.groupby("entity")["count_to_date"].diff()
 
     # detect quadrant divergence
     movement_df["quadrant_differs"] = (
@@ -472,7 +461,9 @@ def track_cumulative_movement(
 
     # metadata
     metadata = {
-        "entities_tracked": movement_df["entity"].nunique() if not movement_df.empty else 0,
+        "entities_tracked": movement_df["entity"].nunique()
+        if not movement_df.empty
+        else 0,
         "quarters_analyzed": len(quarter_schedule),
         "total_observations": len(movement_df),
         "divergence_rate": divergence_pct,

@@ -10,6 +10,7 @@ from matplotlib.lines import Line2D
 # try to import adjustText for label positioning
 try:
     from adjustText import adjust_text
+
     ADJUSTTEXT_AVAILABLE = True
 except ImportError:
     ADJUSTTEXT_AVAILABLE = False
@@ -78,7 +79,10 @@ def plot_priority_matrix(
     if bubble_col and bubble_col in df.columns:
         # use log scaling for bubble sizes
         import numpy as np
-        df["size"] = 100 + 900 * (np.log1p(df[bubble_col]) / np.log1p(df[bubble_col].max()))
+
+        df["size"] = 100 + 900 * (
+            np.log1p(df[bubble_col]) / np.log1p(df[bubble_col].max())
+        )
     else:
         # uniform bubble size
         df["size"] = 200
@@ -179,7 +183,8 @@ def plot_priority_matrix(
         # place labels
         for q, (cx, cy) in quadrant_centers.items():
             ax.text(
-                cx, cy,
+                cx,
+                cy,
                 quadrant_labels[q],
                 ha="center",
                 va="center",
@@ -233,7 +238,8 @@ def plot_priority_matrix(
     for q, color in colors.items():
         legend_elements.append(
             Line2D(
-                [0], [0],
+                [0],
+                [0],
                 marker="o",
                 color="w",
                 markerfacecolor=color,
@@ -305,10 +311,14 @@ def plot_priority_matrix(
         csv_path = f"{output_dir}/../results/priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.csv"
 
         # save key columns
-        cols_to_save = ["entity", "quadrant", "Random_Intercept", "Random_Slope", "count"]
-        df[[c for c in cols_to_save if c in df.columns]].to_csv(
-            csv_path, index=False
-        )
+        cols_to_save = [
+            "entity",
+            "quadrant",
+            "Random_Intercept",
+            "Random_Slope",
+            "count",
+        ]
+        df[[c for c in cols_to_save if c in df.columns]].to_csv(csv_path, index=False)
         print(f"CSV saved: {csv_path}")
 
     return plt.gcf()

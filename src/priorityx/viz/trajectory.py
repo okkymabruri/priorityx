@@ -61,10 +61,12 @@ def plot_movement_trajectories(
         ]
     else:
         # select entities with largest movements
-        entity_movement = movement_df.groupby("entity").agg({
-            "x_delta": lambda x: abs(x).sum(),
-            "y_delta": lambda x: abs(x).sum(),
-        })
+        entity_movement = movement_df.groupby("entity").agg(
+            {
+                "x_delta": lambda x: abs(x).sum(),
+                "y_delta": lambda x: abs(x).sum(),
+            }
+        )
         entity_movement["total_movement"] = (
             entity_movement["x_delta"] + entity_movement["y_delta"]
         )
@@ -112,7 +114,10 @@ def plot_movement_trajectories(
             dx = x[i + 1] - x[i]
             dy = y[i + 1] - y[i]
             ax.arrow(
-                x[i], y[i], dx * 0.9, dy * 0.9,
+                x[i],
+                y[i],
+                dx * 0.9,
+                dy * 0.9,
                 head_width=0.1,
                 head_length=0.1,
                 fc=color,
@@ -123,11 +128,12 @@ def plot_movement_trajectories(
 
         # mark start point (circle)
         ax.scatter(
-            x[0], y[0],
+            x[0],
+            y[0],
             s=150,
             c=color,
-            marker='o',
-            edgecolors='black',
+            marker="o",
+            edgecolors="black",
             linewidth=2,
             alpha=0.8,
             zorder=3,
@@ -135,11 +141,12 @@ def plot_movement_trajectories(
 
         # mark end point (square)
         ax.scatter(
-            x[-1], y[-1],
+            x[-1],
+            y[-1],
             s=150,
             c=color,
-            marker='s',
-            edgecolors='black',
+            marker="s",
+            edgecolors="black",
             linewidth=2,
             alpha=0.8,
             zorder=3,
@@ -153,13 +160,13 @@ def plot_movement_trajectories(
             textcoords="offset points",
             fontsize=10,
             color=color,
-            fontweight='bold',
+            fontweight="bold",
             alpha=0.9,
         )
 
     # add quadrant dividers
-    ax.axhline(0, color='grey', linestyle='--', alpha=0.7, linewidth=1, zorder=0)
-    ax.axvline(0, color='grey', linestyle='--', alpha=0.7, linewidth=1, zorder=0)
+    ax.axhline(0, color="grey", linestyle="--", alpha=0.7, linewidth=1, zorder=0)
+    ax.axvline(0, color="grey", linestyle="--", alpha=0.7, linewidth=1, zorder=0)
 
     # add quadrant labels
     xlim = ax.get_xlim()
@@ -174,7 +181,8 @@ def plot_movement_trajectories(
 
     for label, (x_pos, y_pos) in quadrant_labels.values():
         ax.text(
-            x_pos, y_pos,
+            x_pos,
+            y_pos,
             label,
             ha="center",
             va="center",
@@ -192,20 +200,43 @@ def plot_movement_trajectories(
     if title:
         ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
     else:
-        ax.set_title(f"{entity_name} Movement Trajectories", fontsize=16,
-                    fontweight="bold", pad=20)
+        ax.set_title(
+            f"{entity_name} Movement Trajectories",
+            fontsize=16,
+            fontweight="bold",
+            pad=20,
+        )
 
     # add legend for markers
     from matplotlib.lines import Line2D
+
     marker_legend = [
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='gray',
-               markersize=10, label='Start', markeredgecolor='black', markeredgewidth=2),
-        Line2D([0], [0], marker='s', color='w', markerfacecolor='gray',
-               markersize=10, label='End', markeredgecolor='black', markeredgewidth=2),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor="gray",
+            markersize=10,
+            label="Start",
+            markeredgecolor="black",
+            markeredgewidth=2,
+        ),
+        Line2D(
+            [0],
+            [0],
+            marker="s",
+            color="w",
+            markerfacecolor="gray",
+            markersize=10,
+            label="End",
+            markeredgecolor="black",
+            markeredgewidth=2,
+        ),
     ]
     ax.legend(
         handles=marker_legend,
-        loc='upper left',
+        loc="upper left",
         frameon=False,
         fontsize=10,
     )

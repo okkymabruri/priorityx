@@ -1,6 +1,6 @@
 # %%
 # compliance violations monitoring example
-import polars as pl
+import pandas as pd
 from datetime import datetime, timedelta
 import random
 
@@ -11,8 +11,16 @@ random.seed(44)
 
 # departments
 departments = [
-    "Finance", "HR", "IT", "Sales", "Marketing",
-    "Operations", "Legal", "Procurement", "Customer Service", "R&D"
+    "Finance",
+    "HR",
+    "IT",
+    "Sales",
+    "Marketing",
+    "Operations",
+    "Legal",
+    "Procurement",
+    "Customer Service",
+    "R&D",
 ]
 # %%
 # generate violations over 2 years
@@ -32,24 +40,33 @@ for dept_idx, dept in enumerate(departments):
             days_offset = random.randint(0, 90)
             violation_date = quarter_date + timedelta(days=days_offset)
 
-            data.append({
-                "department": dept,
-                "date": violation_date,
-            })
+            data.append(
+                {
+                    "department": dept,
+                    "date": violation_date,
+                }
+            )
 
-df = pl.DataFrame(data)
-df = df.with_columns(pl.col("date").cast(pl.Date))
+df = pd.DataFrame(data)
 # %%
 results, stats = fit_priority_matrix(
-    df, entity_col='department', timestamp_col='date',
-    temporal_granularity='quarterly', min_observations=6
+    df,
+    entity_col="department",
+    timestamp_col="date",
+    temporal_granularity="quarterly",
+    min_observations=6,
 )
 # %%
-print('Compliance Violations Priority Matrix:')
-print(results[['entity', 'Random_Intercept', 'Random_Slope', 'count', 'quadrant']])
+print("Compliance Violations Priority Matrix:")
+print(results[["entity", "Random_Intercept", "Random_Slope", "count", "quadrant"]])
 
-plot_priority_matrix(results, entity_name='Department', show_quadrant_labels=True,
-                    save_plot=True, output_dir='examples/violations/output')
-print('\nPlot saved to examples/violations/output/')
+plot_priority_matrix(
+    results,
+    entity_name="Department",
+    show_quadrant_labels=True,
+    save_plot=True,
+    output_dir="examples/violations/output",
+)
+print("\nPlot saved to examples/violations/output/")
 
 # %%

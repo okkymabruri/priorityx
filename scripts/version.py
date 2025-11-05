@@ -37,7 +37,7 @@ def update_version_file(new_version):
         r'^version\s*=\s*"[^"]+"',
         f'version = "{new_version}"',
         content,
-        flags=re.MULTILINE
+        flags=re.MULTILINE,
     )
     pyproject_path.write_text(new_content)
     print(f"Updated pyproject.toml to v{new_version}")
@@ -46,9 +46,7 @@ def update_version_file(new_version):
     init_path = Path("src/priorityx/__init__.py")
     init_content = init_path.read_text()
     new_init_content = re.sub(
-        r'__version__\s*=\s*"[^"]+"',
-        f'__version__ = "{new_version}"',
-        init_content
+        r'__version__\s*=\s*"[^"]+"', f'__version__ = "{new_version}"', init_content
     )
     init_path.write_text(new_init_content)
     print(f"Updated __init__.py to v{new_version}")
@@ -59,22 +57,17 @@ def git_commit_and_tag(version):
     tag = f"v{version}"
 
     # check if tag exists
-    result = subprocess.run(
-        ["git", "tag", "-l", tag],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["git", "tag", "-l", tag], capture_output=True, text=True)
 
     if result.stdout.strip():
         print(f"Tag {tag} already exists")
         return
 
     # commit version changes
-    subprocess.run(["git", "add", "pyproject.toml", "src/priorityx/__init__.py"], check=True)
     subprocess.run(
-        ["git", "commit", "-m", f"Bump version to {version}"],
-        check=True
+        ["git", "add", "pyproject.toml", "src/priorityx/__init__.py"], check=True
     )
+    subprocess.run(["git", "commit", "-m", f"Bump version to {version}"], check=True)
     print("Committed version changes")
 
     # create tag

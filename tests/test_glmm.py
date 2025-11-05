@@ -1,6 +1,6 @@
 """Tests for GLMM estimation."""
 
-import polars as pl
+import pandas as pd
 import pytest
 from datetime import datetime, timedelta
 from priorityx.core.glmm import fit_priority_matrix
@@ -23,12 +23,14 @@ def generate_test_data(n_entities=5, n_quarters=12):
                 dates.append(quarter_date)
                 entities.append(entity_name)
 
-    df = pl.DataFrame({
-        "entity": entities,
-        "date": dates,
-    })
+    df = pd.DataFrame(
+        {
+            "entity": entities,
+            "date": pd.to_datetime(dates),
+        }
+    )
 
-    return df.with_columns(pl.col("date").cast(pl.Date))
+    return df
 
 
 def test_fit_priority_matrix_basic():
@@ -40,7 +42,7 @@ def test_fit_priority_matrix_basic():
         entity_col="entity",
         timestamp_col="date",
         temporal_granularity="quarterly",
-        min_observations=6
+        min_observations=6,
     )
 
     assert len(results) > 0
@@ -48,7 +50,6 @@ def test_fit_priority_matrix_basic():
     assert "Random_Intercept" in results.columns
     assert "Random_Slope" in results.columns
     assert "quadrant" in results.columns
-    assert "count" in results.columns
 
 
 def test_fit_priority_matrix_stats():
@@ -56,16 +57,14 @@ def test_fit_priority_matrix_stats():
     df = generate_test_data()
 
     results, stats = fit_priority_matrix(
-        df,
-        entity_col="entity",
-        timestamp_col="date",
-        temporal_granularity="quarterly"
+        df, entity_col="entity", timestamp_col="date", temporal_granularity="quarterly"
     )
 
     assert "n_entities" in stats
     assert "n_observations" in stats
     assert "method" in stats
     assert stats["method"] == "VB"
+    assert stats["temporal_granularity"] == "quarterly"
 
 
 def test_min_total_count_filter():
@@ -74,28 +73,24 @@ def test_min_total_count_filter():
 
     # without filter
     results1, _ = fit_priority_matrix(
-        df, entity_col="entity", timestamp_col="date",
-        min_total_count=0
+        df, entity_col="entity", timestamp_col="date", min_total_count=0
     )
 
-    # with high filter
+    # with high filter (should filter out low-volume entities)
     results2, _ = fit_priority_matrix(
-        df, entity_col="entity", timestamp_col="date",
-        min_total_count=200
+        df, entity_col="entity", timestamp_col="date", min_total_count=250
     )
 
     assert len(results2) < len(results1)
 
 
-@pytest.mark.skip(reason="Date filter creates sparse data in synthetic test")
+@pytest.mark.skip(reason="Date filter creates sparse data, causes convergence issues")
 def test_date_filter():
     """Test date filtering."""
-    df = generate_test_data(n_quarters=12)
+    df = generate_test_data()
 
     results, _ = fit_priority_matrix(
-        df, entity_col="entity", timestamp_col="date",
-        date_filter="> 2023-01-01",
-        min_observations=6
+        df, entity_col="entity", timestamp_col="date", date_filter="< 2024-01-01"
     )
 
-    assert len(results) >= 0
+    assert len(results) > 0

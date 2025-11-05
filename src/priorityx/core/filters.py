@@ -1,19 +1,19 @@
 """Data quality filters for entity analysis."""
 
 from datetime import timedelta
+import numpy as np
 
 import pandas as pd
-import polars as pl
 
 
 def filter_sparse_entities(
-    df: pl.DataFrame,
+    df: pd.DataFrame,
     entity_col: str,
     timestamp_col: str,
     min_total_count: int = 20,
     min_observations: int = 3,
     temporal_granularity: str = "yearly",
-) -> pl.DataFrame:
+) -> pd.DataFrame:
     """
     Filter entities with insufficient data.
 
@@ -22,7 +22,7 @@ def filter_sparse_entities(
     - Number of time period observations
 
     Args:
-        df: Input polars DataFrame
+        df: Input pandas DataFrame
         entity_col: Column name for entity identifier
         timestamp_col: Column name for timestamp
         min_total_count: Minimum total count (default: 20)
@@ -39,15 +39,16 @@ def filter_sparse_entities(
         ...     min_total_count=50, min_observations=8
         ... )
     """
-    n_before = df.select(entity_col).n_unique()
+    df = df.copy()
+    n_before = df[entity_col].nunique()
 
     # filter by total count
     if min_total_count > 0:
-        total_counts = df.group_by(entity_col).agg(pl.len().alias("total_count"))
-        valid_entities = total_counts.filter(
-            pl.col("total_count") >= min_total_count
-        )[entity_col]
-        df = df.filter(pl.col(entity_col).is_in(valid_entities))
+        total_counts = df.groupby(entity_col).size().reset_index(name="total_count")
+        valid_entities = total_counts[total_counts["total_count"] >= min_total_count][
+            entity_col
+        ]
+        df = df[df[entity_col].isin(valid_entities)]
 
     # filter by observations (time periods)
     if min_observations > 0:
@@ -60,42 +61,40 @@ def filter_sparse_entities(
 
         # count unique periods per entity
         if temporal_granularity == "quarterly":
-            df_temp = df.with_columns(
-                [
-                    pl.col(timestamp_col).dt.year().alias("year"),
-                    pl.col(timestamp_col).dt.quarter().alias("quarter"),
-                ]
-            )
-            period_counts = df_temp.group_by(entity_col).agg(
-                pl.struct(["year", "quarter"]).n_unique().alias("n_periods")
+            df["year"] = pd.to_datetime(df[timestamp_col]).dt.year
+            df["quarter"] = pd.to_datetime(df[timestamp_col]).dt.quarter
+            period_counts = (
+                df.groupby(entity_col)
+                .apply(
+                    lambda x: len(x[["year", "quarter"]].drop_duplicates()),
+                    include_groups=False,
+                )
+                .reset_index(name="n_periods")
             )
         elif temporal_granularity == "semiannual":
-            df_temp = df.with_columns(
-                [
-                    pl.col(timestamp_col).dt.year().alias("year"),
-                    pl.col(timestamp_col).dt.quarter().alias("quarter"),
-                ]
-            ).with_columns(
-                pl.when(pl.col("quarter") <= 2)
-                .then(pl.lit(1))
-                .otherwise(pl.lit(2))
-                .alias("semester")
-            )
-            period_counts = df_temp.group_by(entity_col).agg(
-                pl.struct(["year", "semester"]).n_unique().alias("n_periods")
+            df["year"] = pd.to_datetime(df[timestamp_col]).dt.year
+            df["quarter"] = pd.to_datetime(df[timestamp_col]).dt.quarter
+            df["semester"] = np.where(df["quarter"] <= 2, 1, 2)
+            period_counts = (
+                df.groupby(entity_col)
+                .apply(
+                    lambda x: len(x[["year", "semester"]].drop_duplicates()),
+                    include_groups=False,
+                )
+                .reset_index(name="n_periods")
             )
         else:  # yearly
-            df_temp = df.with_columns(pl.col(timestamp_col).dt.year().alias("year"))
-            period_counts = df_temp.group_by(entity_col).agg(
-                pl.col("year").n_unique().alias("n_periods")
+            df["year"] = pd.to_datetime(df[timestamp_col]).dt.year
+            period_counts = (
+                df.groupby(entity_col)["year"].nunique().reset_index(name="n_periods")
             )
 
-        valid_entities = period_counts.filter(
-            pl.col("n_periods") >= min_obs
-        )[entity_col]
-        df = df.filter(pl.col(entity_col).is_in(valid_entities))
+        valid_entities = period_counts[period_counts["n_periods"] >= min_obs][
+            entity_col
+        ]
+        df = df[df[entity_col].isin(valid_entities)]
 
-    n_after = df.select(entity_col).n_unique()
+    n_after = df[entity_col].nunique()
     n_filtered = n_before - n_after
 
     if n_filtered > 0:
@@ -105,11 +104,11 @@ def filter_sparse_entities(
 
 
 def filter_stale_entities(
-    df: pl.DataFrame,
+    df: pd.DataFrame,
     entity_col: str,
     timestamp_col: str,
     decline_window_quarters: int = 6,
-) -> pl.DataFrame:
+) -> pd.DataFrame:
     """
     Filter entities inactive for more than N quarters.
 
@@ -118,9 +117,9 @@ def filter_stale_entities(
     entities from contaminating the model baseline.
 
     Args:
-        df: Input polars DataFrame
+        df: Input pandas DataFrame
         entity_col: Column name for entity identifier
-        timestamp_col: Column name for timestamp (Date type)
+        timestamp_col: Column name for timestamp (datetime type)
         decline_window_quarters: Maximum quarters since last observation (default: 6)
 
     Returns:
@@ -135,35 +134,33 @@ def filter_stale_entities(
     if decline_window_quarters <= 0:
         return df
 
+    df = df.copy()
+    df[timestamp_col] = pd.to_datetime(df[timestamp_col])
+
     # find last observation per entity
-    last_observation = df.group_by(entity_col).agg(
-        pl.col(timestamp_col).max().alias("last_date")
+    last_observation = (
+        df.groupby(entity_col)[timestamp_col].max().reset_index(name="last_date")
     )
 
     # get dataset max date
-    dataset_max_datetime = df.select(pl.col(timestamp_col).max()).item()
-    dataset_max_date = (
-        dataset_max_datetime.date()
-        if hasattr(dataset_max_datetime, "date")
-        else dataset_max_datetime
-    )
+    dataset_max_date = df[timestamp_col].max()
 
     # calculate cutoff date
     decline_cutoff = dataset_max_date - timedelta(
         days=decline_window_quarters * 91  # ~91 days per quarter
     )
 
-    n_before = df.select(entity_col).n_unique()
+    n_before = df[entity_col].nunique()
 
     # identify stale entities
-    stale_entities = last_observation.filter(
-        pl.col("last_date").cast(pl.Date) < pl.lit(decline_cutoff).cast(pl.Date)
-    )[entity_col]
+    stale_entities = last_observation[last_observation["last_date"] < decline_cutoff][
+        entity_col
+    ]
 
     # filter them out
-    df = df.filter(~pl.col(entity_col).is_in(stale_entities))
+    df = df[~df[entity_col].isin(stale_entities)]
 
-    n_after = df.select(entity_col).n_unique()
+    n_after = df[entity_col].nunique()
     n_filtered = n_before - n_after
 
     if n_filtered > 0:
@@ -205,9 +202,7 @@ def filter_sparse_quarters(
     quarter_counts = movement_df.groupby(quarter_col)[entity_col].nunique()
 
     # identify valid quarters
-    valid_quarters = quarter_counts[
-        quarter_counts >= min_entities_per_quarter
-    ].index
+    valid_quarters = quarter_counts[quarter_counts >= min_entities_per_quarter].index
 
     # filter
     filtered_df = movement_df[movement_df[quarter_col].isin(valid_quarters)]

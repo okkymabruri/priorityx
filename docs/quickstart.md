@@ -9,12 +9,13 @@ pip install priorityx
 ## Basic Usage
 
 ```python
-import polars as pl
+import pandas as pd
 from priorityx.core.glmm import fit_priority_matrix
 from priorityx.viz.matrix import plot_priority_matrix
 
 # load your data
-df = pl.read_csv("your_data.csv")
+df = pd.read_csv("your_data.csv")
+df["date"] = pd.to_datetime(df["date"])
 
 # fit priority matrix
 results, stats = fit_priority_matrix(

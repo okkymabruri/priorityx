@@ -1,9 +1,10 @@
 """GLMM estimation for entity prioritization using Poisson mixed models."""
 
 from typing import Dict, Literal, Optional, Tuple
+from datetime import timedelta
+import numpy as np
 
 import pandas as pd
-import polars as pl
 from statsmodels.genmod.bayes_mixed_glm import PoissonBayesMixedGLM
 
 # default priors (validated on regulatory data)
@@ -28,7 +29,7 @@ def _extract_random_effects(
 
 
 def fit_priority_matrix(
-    df: pl.LazyFrame | pl.DataFrame,
+    df: pd.DataFrame,
     entity_col: str,
     timestamp_col: str,
     count_col: Optional[str] = None,
@@ -59,12 +60,11 @@ def fit_priority_matrix(
     Returns:
         Tuple of (results DataFrame, statistics dict)
     """
-    # ensure dataframe
-    if isinstance(df, pl.LazyFrame):
-        df = df.collect()
+    # create copy to avoid modifying original
+    df = df.copy()
 
-    # ensure timestamp column is Date type
-    df = df.with_columns(pl.col(timestamp_col).cast(pl.Date))
+    # ensure timestamp column is datetime
+    df[timestamp_col] = pd.to_datetime(df[timestamp_col])
 
     # apply date filter if specified
     if date_filter:
@@ -72,40 +72,31 @@ def fit_priority_matrix(
 
         # parse filter operators
         if date_filter_clean.startswith("<="):
-            date_value = date_filter_clean[2:].strip()
-            df = df.filter(
-                pl.col(timestamp_col) <= pl.lit(date_value).cast(pl.Date)
-            )
+            date_value = pd.Timestamp(date_filter_clean[2:].strip())
+            df = df[df[timestamp_col] <= date_value]
         elif date_filter_clean.startswith(">="):
-            date_value = date_filter_clean[2:].strip()
-            df = df.filter(
-                pl.col(timestamp_col) >= pl.lit(date_value).cast(pl.Date)
-            )
+            date_value = pd.Timestamp(date_filter_clean[2:].strip())
+            df = df[df[timestamp_col] >= date_value]
         elif date_filter_clean.startswith("<"):
-            date_value = date_filter_clean[1:].strip()
-            df = df.filter(
-                pl.col(timestamp_col) < pl.lit(date_value).cast(pl.Date)
-            )
+            date_value = pd.Timestamp(date_filter_clean[1:].strip())
+            df = df[df[timestamp_col] < date_value]
         elif date_filter_clean.startswith(">"):
-            date_value = date_filter_clean[1:].strip()
-            df = df.filter(
-                pl.col(timestamp_col) > pl.lit(date_value).cast(pl.Date)
-            )
+            date_value = pd.Timestamp(date_filter_clean[1:].strip())
+            df = df[df[timestamp_col] > date_value]
         else:
             # assume date only (use < for backward compatibility)
-            df = df.filter(
-                pl.col(timestamp_col) < pl.lit(date_filter).cast(pl.Date)
-            )
+            date_value = pd.Timestamp(date_filter)
+            df = df[df[timestamp_col] < date_value]
 
     # filter by minimum total count if specified
-    n_before_volume_filter = df.select(entity_col).n_unique()
+    n_before_volume_filter = df[entity_col].nunique()
     if min_total_count > 0:
-        total_counts = df.group_by(entity_col).agg(pl.len().alias("total_count"))
-        valid_entities = total_counts.filter(
-            pl.col("total_count") >= min_total_count
-        )[entity_col]
-        df = df.filter(pl.col(entity_col).is_in(valid_entities.to_list()))
-        n_after_volume_filter = df.select(entity_col).n_unique()
+        total_counts = df.groupby(entity_col).size().reset_index(name="total_count")
+        valid_entities = total_counts[total_counts["total_count"] >= min_total_count][
+            entity_col
+        ]
+        df = df[df[entity_col].isin(valid_entities)]
+        n_after_volume_filter = df[entity_col].nunique()
         n_filtered_volume = n_before_volume_filter - n_after_volume_filter
         if n_filtered_volume > 0:
             print(
@@ -114,30 +105,23 @@ def fit_priority_matrix(
 
     # filter stale entities (decline window)
     if decline_window_quarters > 0 and temporal_granularity == "quarterly":
-        last_observation = df.group_by(entity_col).agg(
-            pl.col(timestamp_col).max().alias("last_date")
+        last_observation = (
+            df.groupby(entity_col)[timestamp_col].max().reset_index(name="last_date")
         )
-
-        from datetime import timedelta
 
         # use max date in dataset for historical analysis
-        dataset_max_datetime = df.select(pl.col(timestamp_col).max()).item()
-        dataset_max_date = (
-            dataset_max_datetime.date()
-            if hasattr(dataset_max_datetime, "date")
-            else dataset_max_datetime
-        )
+        dataset_max_date = df[timestamp_col].max()
         decline_cutoff = dataset_max_date - timedelta(
             days=decline_window_quarters * 91  # ~91 days per quarter
         )
 
-        n_before_decline_filter = df.select(entity_col).n_unique()
-        stale_entities = last_observation.filter(
-            pl.col("last_date").cast(pl.Date) < pl.lit(decline_cutoff).cast(pl.Date)
-        )[entity_col]
+        n_before_decline_filter = df[entity_col].nunique()
+        stale_entities = last_observation[
+            last_observation["last_date"] < decline_cutoff
+        ][entity_col]
 
-        df = df.filter(~pl.col(entity_col).is_in(stale_entities.to_list()))
-        n_after_decline_filter = df.select(entity_col).n_unique()
+        df = df[~df[entity_col].isin(stale_entities)]
+        n_after_decline_filter = df[entity_col].nunique()
         n_filtered_stale = n_before_decline_filter - n_after_decline_filter
 
         if n_filtered_stale > 0:
@@ -153,138 +137,122 @@ def fit_priority_matrix(
 
     # prepare aggregation based on temporal granularity
     if temporal_granularity == "quarterly":
-        df = df.with_columns(
-            [
-                pl.col(timestamp_col).dt.year().alias("year"),
-                pl.col(timestamp_col).dt.quarter().alias("quarter"),
-            ]
-        )
+        df["year"] = df[timestamp_col].dt.year
+        df["quarter"] = df[timestamp_col].dt.quarter
 
         if count_col:
             df_prepared = (
-                df.group_by(["year", "quarter", entity_col])
-                .agg(pl.col(count_col).sum().alias("count"))
-                .sort(["year", "quarter", entity_col])
+                df.groupby(["year", "quarter", entity_col])[count_col]
+                .sum()
+                .reset_index(name="count")
+                .sort_values(["year", "quarter", entity_col])
             )
         else:
             df_prepared = (
-                df.group_by(["year", "quarter", entity_col])
-                .agg(pl.len().alias("count"))
-                .sort(["year", "quarter", entity_col])
+                df.groupby(["year", "quarter", entity_col])
+                .size()
+                .reset_index(name="count")
+                .sort_values(["year", "quarter", entity_col])
             )
 
     elif temporal_granularity == "semiannual":
-        df = df.with_columns(
-            [
-                pl.col(timestamp_col).dt.year().alias("year"),
-                pl.col(timestamp_col).dt.quarter().alias("quarter"),
-            ]
-        ).with_columns(
-            # semester: Q1-Q2 = 1, Q3-Q4 = 2
-            pl.when(pl.col("quarter") <= 2)
-            .then(pl.lit(1))
-            .otherwise(pl.lit(2))
-            .alias("semester")
-        )
+        df["year"] = df[timestamp_col].dt.year
+        df["quarter"] = df[timestamp_col].dt.quarter
+        # semester: Q1-Q2 = 1, Q3-Q4 = 2
+        df["semester"] = np.where(df["quarter"] <= 2, 1, 2)
 
         if count_col:
             df_prepared = (
-                df.group_by(["year", "semester", entity_col])
-                .agg(pl.col(count_col).sum().alias("count"))
-                .sort(["year", "semester", entity_col])
+                df.groupby(["year", "semester", entity_col])[count_col]
+                .sum()
+                .reset_index(name="count")
+                .sort_values(["year", "semester", entity_col])
             )
         else:
             df_prepared = (
-                df.group_by(["year", "semester", entity_col])
-                .agg(pl.len().alias("count"))
-                .sort(["year", "semester", entity_col])
+                df.groupby(["year", "semester", entity_col])
+                .size()
+                .reset_index(name="count")
+                .sort_values(["year", "semester", entity_col])
             )
 
     else:  # yearly
-        df = df.with_columns(pl.col(timestamp_col).dt.year().alias("year"))
+        df["year"] = df[timestamp_col].dt.year
 
         if count_col:
             df_prepared = (
-                df.group_by(["year", entity_col])
-                .agg(pl.col(count_col).sum().alias("count"))
-                .sort(["year", entity_col])
+                df.groupby(["year", entity_col])[count_col]
+                .sum()
+                .reset_index(name="count")
+                .sort_values(["year", entity_col])
             )
         else:
             df_prepared = (
-                df.group_by(["year", entity_col])
-                .agg(pl.len().alias("count"))
-                .sort(["year", entity_col])
+                df.groupby(["year", entity_col])
+                .size()
+                .reset_index(name="count")
+                .sort_values(["year", entity_col])
             )
 
     # filter entities with sufficient observations
     if min_observations > 0:
-        entity_counts = df_prepared.group_by(entity_col).agg(
-            pl.len().alias("n_periods")
+        entity_counts = (
+            df_prepared.groupby(entity_col).size().reset_index(name="n_periods")
         )
-        valid_entities = entity_counts.filter(
-            pl.col("n_periods") >= min_observations
-        )[entity_col]
-        df_prepared = df_prepared.filter(pl.col(entity_col).is_in(valid_entities.to_list()))
+        valid_entities = entity_counts[entity_counts["n_periods"] >= min_observations][
+            entity_col
+        ]
+        df_prepared = df_prepared[df_prepared[entity_col].isin(valid_entities)]
 
     # ensure count is integer
-    df_prepared = df_prepared.with_columns(pl.col("count").cast(pl.Int64))
+    df_prepared["count"] = df_prepared["count"].astype(np.int64)
 
     # create time variable based on temporal granularity
     if temporal_granularity == "quarterly":
         # continuous quarterly time: year + (quarter-1)/4
-        df_prepared = df_prepared.with_columns(
-            (pl.col("year") + (pl.col("quarter") - 1) / 4).alias("time_continuous")
+        df_prepared["time_continuous"] = (
+            df_prepared["year"] + (df_prepared["quarter"] - 1) / 4
         )
 
         # center for numerical stability
         mean_time = df_prepared["time_continuous"].mean()
-        df_prepared = df_prepared.with_columns(
-            (pl.col("time_continuous") - mean_time).alias("time")
-        )
+        df_prepared["time"] = df_prepared["time_continuous"] - mean_time
 
     elif temporal_granularity == "semiannual":
         # continuous semiannual time: year + (semester-1)/2
-        df_prepared = df_prepared.with_columns(
-            (pl.col("year") + (pl.col("semester") - 1) / 2).alias("time_continuous")
+        df_prepared["time_continuous"] = (
+            df_prepared["year"] + (df_prepared["semester"] - 1) / 2
         )
 
         # center for numerical stability
         mean_time = df_prepared["time_continuous"].mean()
-        df_prepared = df_prepared.with_columns(
-            (pl.col("time_continuous") - mean_time).alias("time")
-        )
+        df_prepared["time"] = df_prepared["time_continuous"] - mean_time
 
     else:  # yearly
         # center year for numerical stability
         mean_year = df_prepared["year"].mean()
-        df_prepared = df_prepared.with_columns(
-            (pl.col("year") - mean_year).alias("time")
-        )
+        df_prepared["time"] = df_prepared["year"] - mean_year
 
     # ensure categorical type for entity
-    df_prepared = df_prepared.with_columns(pl.col(entity_col).cast(pl.Categorical))
+    df_prepared[entity_col] = df_prepared[entity_col].astype("category")
 
     # make period categorical for seasonal effects
     if temporal_granularity == "quarterly":
-        df_prepared = df_prepared.with_columns(pl.col("quarter").cast(pl.Categorical))
+        df_prepared["quarter"] = df_prepared["quarter"].astype("category")
     elif temporal_granularity == "semiannual":
-        df_prepared = df_prepared.with_columns(pl.col("semester").cast(pl.Categorical))
+        df_prepared["semester"] = df_prepared["semester"].astype("category")
 
     # ensure positive counts for poisson
-    df_prepared = df_prepared.filter(pl.col("count") > 0)
+    df_prepared = df_prepared[df_prepared["count"] > 0]
 
-    # convert to pandas for statsmodels
-    df_pandas = df_prepared.to_pandas()
-    df_pandas["time"] = df_pandas["time"].astype(float)
-    df_pandas[entity_col] = df_pandas[entity_col].astype("category")
+    # prepare for statsmodels
+    df_prepared["time"] = df_prepared["time"].astype(float)
 
     # build fixed-effect formula with seasonal dummies
     formula = "count ~ time"
     if temporal_granularity == "quarterly":
-        df_pandas["quarter"] = df_pandas["quarter"].astype("category")
         formula += " + C(quarter)"
     elif temporal_granularity == "semiannual":
-        df_pandas["semester"] = df_pandas["semester"].astype("category")
         formula += " + C(semester)"
 
     # random effects: intercept + slope per entity
@@ -297,7 +265,7 @@ def fit_priority_matrix(
     glmm_model = PoissonBayesMixedGLM.from_formula(
         formula,
         random_formulas,
-        df_pandas,
+        df_prepared,
         vcp_p=vcp_p,
         fe_p=fe_p,
     )
@@ -315,24 +283,18 @@ def fit_priority_matrix(
     slopes = [slopes_dict[ent] for ent in entities]
 
     # create results dataframe
-    df_random_effects = pl.DataFrame(
+    df_random_effects = pd.DataFrame(
         {"entity": entities, "Random_Intercept": intercepts, "Random_Slope": slopes}
     )
 
     # calculate totals from original filtered data
     df_totals = (
-        df.group_by(entity_col)
-        .agg(pl.len().alias("count"))
-        .sort(entity_col)
+        df.groupby(entity_col).size().reset_index(name="count").sort_values(entity_col)
     )
 
-    # convert to pandas for merging
-    df_random_effects_pd = df_random_effects.to_pandas()
-    df_totals_pd = df_totals.to_pandas()
-
     # merge
-    results_df = df_random_effects_pd.merge(
-        df_totals_pd, left_on="entity", right_on=entity_col, how="left"
+    results_df = df_random_effects.merge(
+        df_totals, left_on="entity", right_on=entity_col, how="left"
     )
 
     # import quadrant classifier

@@ -1,6 +1,5 @@
 """Tests for transition driver analysis."""
 
-import polars as pl
 import pandas as pd
 
 from priorityx.tracking.drivers import (
@@ -24,9 +23,14 @@ def test_calculate_quarter_dates():
 def test_classify_priority_critical():
     """Test critical priority classification."""
     priority, reason, spike = classify_priority(
-        from_quadrant="Q3", to_quadrant="Q1",
-        x=0.5, y=0.6, x_delta=0.5, y_delta=0.5,
-        count_delta=100, percent_change=200
+        from_quadrant="Q3",
+        to_quadrant="Q1",
+        x=0.5,
+        y=0.6,
+        x_delta=0.5,
+        y_delta=0.5,
+        count_delta=100,
+        percent_change=200,
     )
     assert priority == 1
     assert "Critical" in reason
@@ -36,9 +40,14 @@ def test_classify_priority_critical():
 def test_classify_priority_investigate():
     """Test investigate priority."""
     priority, reason, spike = classify_priority(
-        from_quadrant="Q3", to_quadrant="Q2",
-        x=-0.1, y=0.2, x_delta=0.05, y_delta=0.2,
-        count_delta=20, percent_change=150
+        from_quadrant="Q3",
+        to_quadrant="Q2",
+        x=-0.1,
+        y=0.2,
+        x_delta=0.05,
+        y_delta=0.2,
+        count_delta=20,
+        percent_change=150,
     )
     assert priority == 2
     assert spike is None
@@ -47,28 +56,28 @@ def test_classify_priority_investigate():
 def test_extract_transition_drivers_basic():
     """Test basic transition driver extraction."""
     # create movement data
-    movement_data = pd.DataFrame({
-        "entity": ["Service A", "Service A"],
-        "quarter": ["2024-Q2", "2024-Q3"],
-        "period_quadrant": ["Q3", "Q2"],
-        "period_x": [-0.2, -0.1],
-        "period_y": [-0.1, 0.2],
-        "count_to_date": [50, 80],
-    })
-
-    # create raw data
-    dates = pl.date_range(
-        start=pl.date(2024, 1, 1),
-        end=pl.date(2024, 7, 15),
-        interval="1d",
-        eager=True
+    movement_data = pd.DataFrame(
+        {
+            "entity": ["Service A", "Service A"],
+            "quarter": ["2024-Q2", "2024-Q3"],
+            "period_quadrant": ["Q3", "Q2"],
+            "period_x": [-0.2, -0.1],
+            "period_y": [-0.1, 0.2],
+            "count_to_date": [50, 80],
+        }
     )
 
-    df_raw = pl.DataFrame({
-        "service": ["Service A"] * len(dates),
-        "date": dates,
-        "type": ["Type1"] * (len(dates) // 2) + ["Type2"] * (len(dates) - len(dates) // 2),
-    })
+    # create raw data
+    dates = pd.date_range(start="2024-01-01", end="2024-07-15", freq="D")
+
+    df_raw = pd.DataFrame(
+        {
+            "service": ["Service A"] * len(dates),
+            "date": dates,
+            "type": ["Type1"] * (len(dates) // 2)
+            + ["Type2"] * (len(dates) - len(dates) // 2),
+        }
+    )
 
     # run analysis
     analysis = extract_transition_drivers(
@@ -101,4 +110,9 @@ def test_extract_transition_drivers_basic():
 
     # verify priority classification exists
     assert analysis["priority"]["priority"] in [1, 2, 3, 4]
-    assert analysis["priority"]["priority_name"] in ["Crisis", "Investigate", "Monitor", "Low"]
+    assert analysis["priority"]["priority_name"] in [
+        "Critical",
+        "Investigate",
+        "Monitor",
+        "Low",
+    ]

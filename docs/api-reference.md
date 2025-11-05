@@ -25,7 +25,7 @@ results, stats = fit_priority_matrix(
 Fits Poisson GLMM to classify entities into priority quadrants.
 
 **Parameters:**
-- `df`: polars DataFrame
+- `df`: pandas DataFrame
 - `entity_col`: Entity identifier column name
 - `timestamp_col`: Date column name
 - `count_col`: Count metric column (optional, defaults to row count)
@@ -107,7 +107,7 @@ Analyzes root causes of a quadrant transition.
 
 **Parameters:**
 - `movement_df`: Output from track_cumulative_movement()
-- `df_raw`: Raw event data (polars DataFrame)
+- `df_raw`: Raw event data (pandas DataFrame)
 - `entity_name`: Entity to analyze
 - `quarter_from`: Starting quarter (e.g., "2024-Q2")
 - `quarter_to`: Ending quarter (e.g., "2024-Q3")

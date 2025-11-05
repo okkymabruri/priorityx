@@ -104,7 +104,7 @@ def fit_priority_matrix(
         valid_entities = total_counts.filter(
             pl.col("total_count") >= min_total_count
         )[entity_col]
-        df = df.filter(pl.col(entity_col).is_in(valid_entities))
+        df = df.filter(pl.col(entity_col).is_in(valid_entities.to_list()))
         n_after_volume_filter = df.select(entity_col).n_unique()
         n_filtered_volume = n_before_volume_filter - n_after_volume_filter
         if n_filtered_volume > 0:
@@ -136,7 +136,7 @@ def fit_priority_matrix(
             pl.col("last_date").cast(pl.Date) < pl.lit(decline_cutoff).cast(pl.Date)
         )[entity_col]
 
-        df = df.filter(~pl.col(entity_col).is_in(stale_entities))
+        df = df.filter(~pl.col(entity_col).is_in(stale_entities.to_list()))
         n_after_decline_filter = df.select(entity_col).n_unique()
         n_filtered_stale = n_before_decline_filter - n_after_decline_filter
 
@@ -224,7 +224,7 @@ def fit_priority_matrix(
         valid_entities = entity_counts.filter(
             pl.col("n_periods") >= min_observations
         )[entity_col]
-        df_prepared = df_prepared.filter(pl.col(entity_col).is_in(valid_entities))
+        df_prepared = df_prepared.filter(pl.col(entity_col).is_in(valid_entities.to_list()))
 
     # ensure count is integer
     df_prepared = df_prepared.with_columns(pl.col("count").cast(pl.Int64))

@@ -1,4 +1,4 @@
-# Priorityx
+# Priorityx: Entity prioritization and escalation detection using GLMM statistical models
 
 [![PyPI version](https://badge.fury.io/py/priorityx.svg)](https://badge.fury.io/py/priorityx)
 [![Downloads](https://static.pepy.tech/badge/priorityx)](https://pepy.tech/project/priorityx)

@@ -85,6 +85,60 @@ Extracts quadrant transitions from movement data.
 **Returns:**
 - DataFrame with transition details and risk levels
 
+### extract_transition_drivers
+
+```python
+from priorityx.tracking.drivers import extract_transition_drivers
+
+analysis = extract_transition_drivers(
+    movement_df,
+    df_raw,
+    entity_name="Service A",
+    quarter_from="2024-Q2",
+    quarter_to="2024-Q3",
+    entity_col="service",
+    timestamp_col="date",
+    subcategory_cols=["type", "category"],  # Optional
+    text_col="description"  # Optional
+)
+```
+
+Analyzes root causes of a quadrant transition.
+
+**Parameters:**
+- `movement_df`: Output from track_cumulative_movement()
+- `df_raw`: Raw event data (polars DataFrame)
+- `entity_name`: Entity to analyze
+- `quarter_from`: Starting quarter (e.g., "2024-Q2")
+- `quarter_to`: Ending quarter (e.g., "2024-Q3")
+- `entity_col`: Entity column name
+- `timestamp_col`: Timestamp column name
+- `subcategory_cols`: Optional list of subcategory columns
+- `text_col`: Optional text column for keyword analysis
+
+**Returns:**
+- Dictionary with transition overview, magnitude metrics, subcategory drivers, keyword drivers, and priority classification
+
+### classify_priority
+
+```python
+from priorityx.tracking.drivers import classify_priority
+
+priority, reason, spike_axis = classify_priority(
+    from_quadrant="Q3",
+    to_quadrant="Q1",
+    x=0.5, y=0.6,
+    x_delta=0.5, y_delta=0.5,
+    count_delta=100,
+    percent_change=200
+)
+```
+
+Classifies supervisory priority (1=Critical, 2=Investigate, 3=Monitor, 4=Low).
+
+**Returns:**
+- Tuple of (priority, reason, spike_axis)
+
 ---
 
 ## Visualization Functions
@@ -147,10 +201,29 @@ Creates trajectory plot showing movement through priority space.
 ### Display Summaries
 
 ```python
-from priorityx.utils.helpers import display_quadrant_summary, display_transition_summary
+from priorityx.utils.helpers import (
+    display_quadrant_summary,
+    display_transition_summary,
+    display_movement_summary
+)
 
 display_quadrant_summary(results_df, entity_name="Service")
 display_transition_summary(transitions_df, entity_name="Service")
+display_movement_summary(movement_df, entity_name="Service")
 ```
 
 Prints formatted summaries of analysis results.
+
+### display_transition_drivers
+
+```python
+from priorityx.tracking.drivers import display_transition_drivers
+
+display_transition_drivers(analysis, show_keywords=True)
+```
+
+Prints transition driver analysis in human-readable format.
+
+**Parameters:**
+- `analysis`: Output from extract_transition_drivers()
+- `show_keywords`: Whether to show keyword analysis (default: False)

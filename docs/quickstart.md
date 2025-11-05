@@ -34,6 +34,7 @@ plot_priority_matrix(results, entity_name="Service", save_plot=True)
 ```python
 from priorityx.tracking.movement import track_cumulative_movement
 from priorityx.tracking.transitions import extract_transitions
+from priorityx.tracking.drivers import extract_transition_drivers, display_transition_drivers
 from priorityx.viz.timeline import plot_transition_timeline
 
 # track movement over time
@@ -49,6 +50,20 @@ transitions = extract_transitions(movement)
 
 # visualize transitions
 plot_transition_timeline(transitions, entity_name="Service", save_plot=True)
+
+# analyze drivers for specific transition
+if not transitions.empty:
+    first_transition = transitions.iloc[0]
+    analysis = extract_transition_drivers(
+        movement_df=movement,
+        df_raw=df,
+        entity_name=first_transition["entity"],
+        quarter_from=first_transition["from_quarter"],
+        quarter_to=first_transition["transition_quarter"],
+        entity_col="service",
+        timestamp_col="date"
+    )
+    display_transition_drivers(analysis)
 ```
 
 ## Data Requirements
@@ -60,9 +75,8 @@ Your data needs:
 
 ## Output
 
-Results include:
-- Priority matrix: CSV + scatter plot
-- Transitions: CSV + timeline heatmap
-- Movement: CSV + trajectory plot
+By default, outputs saved to:
+- **`plot/`** - All PNG visualizations (priority matrix, transitions, trajectories)
+- **`results/`** - All CSV data files (entity scores, transitions, movement tracking)
 
-Outputs saved to `plot/` and `results/` directories.
+You can customize output directories using the `output_dir` parameter in visualization functions.

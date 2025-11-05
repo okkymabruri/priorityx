@@ -1,6 +1,6 @@
 [project]
 name = "priorityx"
-version = "0.1.1"
+version = "0.1.2"
 description = "Entity prioritization and escalation detection using GLMM statistical models"
 authors = [
     {name = "Okky Mabruri", email = "okkymbrur@gmail.com"}

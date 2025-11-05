@@ -29,7 +29,7 @@ count ~ time + seasonal_effects + (1 + time | entity)
 
 Entities classified based on random effects:
 
-**Q1 (Crisis):** intercept > 0, slope > 0, count ≥ 50
+**Q1 (Critical):** intercept > 0, slope > 0, count ≥ 50
 - High volume, accelerating growth
 - Requires immediate attention
 
@@ -45,7 +45,7 @@ Entities classified based on random effects:
 - High volume but not accelerating
 - Persistent baseline issues
 
-The count threshold for Q1 prevents low-volume entities from being mislabeled as Crisis.
+The count threshold for Q1 prevents low-volume entities from being mislabeled as Critical.
 
 ## Movement Tracking
 

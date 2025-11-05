@@ -1,4 +1,12 @@
-# Priorityx: Entity prioritization and escalation detection using GLMM statistical models
+# Priorityx
+
+[![PyPI version](https://badge.fury.io/py/priorityx.svg)](https://badge.fury.io/py/priorityx)
+[![Downloads](https://static.pepy.tech/badge/priorityx)](https://pepy.tech/project/priorityx)
+[![Tests](https://github.com/okkymabruri/priorityx/workflows/Tests/badge.svg)](https://github.com/okkymabruri/priorityx/actions)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Entity prioritization and escalation detection using GLMM statistical models
 
 ## Installation
 

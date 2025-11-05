@@ -75,7 +75,7 @@ def git_commit_and_tag(version):
         ["git", "commit", "-m", f"Bump version to {version}"],
         check=True
     )
-    print(f"Committed version changes")
+    print("Committed version changes")
 
     # create tag
     subprocess.run(["git", "tag", tag], check=True)
@@ -126,7 +126,7 @@ def main():
     git_commit_and_tag(new_version)
 
     print(f"\nDone! Version {new_version} released.")
-    print(f"GitHub Actions will publish to PyPI automatically.")
+    print("GitHub Actions will publish to PyPI automatically.")
 
 
 if __name__ == "__main__":

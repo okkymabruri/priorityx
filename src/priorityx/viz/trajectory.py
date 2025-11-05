@@ -166,7 +166,7 @@ def plot_movement_trajectories(
     ylim = ax.get_ylim()
 
     quadrant_labels = {
-        "Q1": ("Q1: Crisis", (xlim[1] * 0.9, ylim[1] * 0.9)),
+        "Q1": ("Q1: Critical", (xlim[1] * 0.9, ylim[1] * 0.9)),
         "Q2": ("Q2: Investigate", (xlim[0] * 0.9, ylim[1] * 0.9)),
         "Q3": ("Q3: Monitor", (xlim[0] * 0.9, ylim[0] * 0.9)),
         "Q4": ("Q4: Low Priority", (xlim[1] * 0.9, ylim[0] * 0.9)),

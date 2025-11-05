@@ -188,7 +188,7 @@ def plot_transition_timeline(
         ax.scatter(x_pos, y_pos, s=100, c=color, alpha=0.8, zorder=2)
 
         # add transition label
-        label = f"{transition['from_quadrant']}→{transition['to_quadrant']}"
+        label = f"{transition['from_quadrant']}->{transition['to_quadrant']}"
         ax.annotate(
             label,
             (x_pos, y_pos),

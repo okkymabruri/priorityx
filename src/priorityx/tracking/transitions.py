@@ -22,7 +22,7 @@ def classify_transition_risk(from_quadrant: str, to_quadrant: str) -> Tuple[str,
         - transition_description: Human-readable description
 
     Risk Classification:
-        **Critical**: Transitions TO Q1 (Crisis)
+        **Critical**: Transitions TO Q1 (Critical)
         - Q2→Q1: Emerging issue became critical
         - Q3→Q1: Low priority escalated to critical
         - Q4→Q1: Persistent issue became critical

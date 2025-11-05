@@ -170,7 +170,7 @@ def plot_priority_matrix(
 
         # quadrant descriptions
         quadrant_labels = {
-            "Q1": "Q1: Crisis\n(High volume, High growth)",
+            "Q1": "Q1: Critical\n(High volume, High growth)",
             "Q2": "Q2: Investigate\n(Low volume, High growth)",
             "Q3": "Q3: Monitor\n(Low volume, Low growth)",
             "Q4": "Q4: Low Priority\n(High volume, Low growth)",

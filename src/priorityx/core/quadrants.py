@@ -14,10 +14,10 @@ def classify_quadrant(
         intercept: Random intercept (volume indicator)
         slope: Random slope (growth indicator)
         count: Absolute count for Q1 threshold
-        min_q1_count: Minimum count for Crisis classification
+        min_q1_count: Minimum count for Critical classification
 
     Returns:
-        Quadrant code: Q1 (Crisis), Q2 (Investigate), Q3 (Monitor), Q4 (Low)
+        Quadrant code: Q1 (Critical), Q2 (Investigate), Q3 (Monitor), Q4 (Low)
     """
     if intercept > 0 and slope > 0:
         # would be Q1, but check absolute count threshold

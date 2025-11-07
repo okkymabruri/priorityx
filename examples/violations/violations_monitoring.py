@@ -1,5 +1,6 @@
 # %%
 # compliance violations monitoring example
+import os
 import pandas as pd
 from datetime import datetime, timedelta
 import random
@@ -65,8 +66,13 @@ plot_priority_matrix(
     entity_name="Department",
     show_quadrant_labels=True,
     save_plot=True,
-    output_dir="examples/violations/output",
+    output_dir="examples/violations/plot",
 )
-print("\nPlot saved to examples/violations/output/")
+
+# save results
+os.makedirs("examples/violations/results", exist_ok=True)
+results.to_csv("examples/violations/results/priority_matrix.csv", index=False)
+print()
+print("Outputs saved to examples/violations/plot/ and examples/violations/results/")
 
 # %%

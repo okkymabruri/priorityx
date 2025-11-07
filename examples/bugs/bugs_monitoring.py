@@ -1,5 +1,6 @@
 # %%
 # software bug tracking example
+import os
 import pandas as pd
 from priorityx.core.glmm import fit_priority_matrix
 from priorityx.viz.matrix import plot_priority_matrix
@@ -33,8 +34,13 @@ plot_priority_matrix(
     entity_name="Component",
     show_quadrant_labels=True,
     save_plot=True,
-    output_dir="examples/bugs/output",
+    output_dir="examples/bugs/plot",
 )
-print("\nPlot saved to examples/bugs/output/")
+
+# save results
+os.makedirs("examples/bugs/results", exist_ok=True)
+results.to_csv("examples/bugs/results/priority_matrix.csv", index=False)
+print()
+print("Outputs saved to examples/bugs/plot/ and examples/bugs/results/")
 
 # %%

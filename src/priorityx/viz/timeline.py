@@ -171,12 +171,12 @@ def plot_transition_timeline(
     # create y-axis positions
     y_positions = {entity: i for i, entity in enumerate(entities)}
 
-    # color map for risk levels
+    # color map for risk levels (tab20 - distinct hues)
     risk_colors = {
-        "critical": "#d62728",  # red
-        "high": "#ff7f0e",  # orange
-        "medium": "#ffdd57",  # yellow
-        "low": "#2ca02c",  # green
+        "critical": "#d62728",  # tab red
+        "high": "#ff7f0e",  # tab orange
+        "medium": "#ffbb78",  # tab orange (light)
+        "low": "#98df8a",  # tab green (light)
     }
 
     # create figure
@@ -193,7 +193,7 @@ def plot_transition_timeline(
         ax.scatter(x_pos, y_pos, s=100, c=color, alpha=0.8, zorder=2)
 
         # add transition label
-        label = f"{transition['from_quadrant']}->{transition['to_quadrant']}"
+        label = f"{transition['from_quadrant']}→{transition['to_quadrant']}"
         ax.annotate(
             label,
             (x_pos, y_pos),

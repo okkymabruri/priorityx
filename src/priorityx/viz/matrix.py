@@ -130,12 +130,12 @@ def plot_priority_matrix(
     # create plot
     plt.figure(figsize=figsize)
 
-    # define colors for each quadrant
+    # define colors for each quadrant (tab20 - distinct hues)
     colors = {
-        "Q1": "#c2104b",  # red - crisis
-        "Q2": "#FF9636",  # orange - investigate
-        "Q3": "#5cb85c",  # green - monitor
-        "Q4": "#792f88",  # purple - low priority
+        "Q1": "#d62728",  # tab red - critical
+        "Q2": "#ff7f0e",  # tab orange - investigate
+        "Q4": "#1f77b4",  # tab blue - low priority
+        "Q3": "#2ca02c",  # tab green - monitor
     }
 
     # plot all points
@@ -260,6 +260,12 @@ def plot_priority_matrix(
     plt.legend(
         handles=legend_elements, loc="lower right", frameon=False, title="Quadrants"
     )
+
+    # remove chart borders
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_visible(False)
+    ax.spines["bottom"].set_visible(False)
 
     plt.tight_layout()
 

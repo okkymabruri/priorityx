@@ -250,10 +250,17 @@ def fit_priority_matrix(
 
     # build fixed-effect formula with seasonal dummies
     formula = "count ~ time"
-    if temporal_granularity == "quarterly":
+
+    # only add seasonal effects if multi-year data (avoid multicollinearity in single-year)
+    n_years = df_prepared["year"].nunique()
+    if temporal_granularity == "quarterly" and n_years >= 2:
         formula += " + C(quarter)"
-    elif temporal_granularity == "semiannual":
+    elif temporal_granularity == "semiannual" and n_years >= 2:
         formula += " + C(semester)"
+    elif temporal_granularity == "quarterly" and n_years == 1:
+        print("  Warning: Single-year quarterly data detected, skipping seasonal dummies to avoid multicollinearity")
+    elif temporal_granularity == "semiannual" and n_years == 1:
+        print("  Warning: Single-year semiannual data detected, skipping seasonal dummies to avoid multicollinearity")
 
     # random effects: intercept + slope per entity
     random_formulas = {

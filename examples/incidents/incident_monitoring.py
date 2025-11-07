@@ -1,5 +1,6 @@
 # %%
 # it incident monitoring example
+import os
 import pandas as pd
 from priorityx.core.glmm import fit_priority_matrix
 from priorityx.tracking.movement import track_cumulative_movement
@@ -10,6 +11,7 @@ from priorityx.tracking.drivers import (
 )
 from priorityx.viz.matrix import plot_priority_matrix
 from priorityx.viz.timeline import plot_transition_timeline
+from priorityx.viz.trajectory import plot_movement_trajectories
 from priorityx.utils.helpers import display_quadrant_summary, display_transition_summary
 
 # %%
@@ -45,8 +47,12 @@ plot_priority_matrix(
     entity_name="Service",
     show_quadrant_labels=False,
     save_plot=True,
-    output_dir="examples/incidents/output",
+    output_dir="examples/incidents/plot",
 )
+
+# save results
+os.makedirs("examples/incidents/results", exist_ok=True)
+results.to_csv("examples/incidents/results/priority_matrix.csv", index=False)
 
 # %%
 # track movement
@@ -66,6 +72,18 @@ print(
     f"\nTracked {meta['entities_tracked']} services over {meta['quarters_analyzed']} quarters"
 )
 
+# save movement
+movement.to_csv("examples/incidents/results/movement.csv", index=False)
+
+# visualize movement trajectories
+plot_movement_trajectories(
+    movement,
+    entity_name="Service",
+    max_entities=5,
+    save_plot=True,
+    output_dir="examples/incidents/plot"
+)
+
 # %%
 # detect transitions
 transitions = extract_transitions(movement, focus_risk_increasing=True)
@@ -79,8 +97,11 @@ if not transitions.empty:
         transitions,
         entity_name="Service",
         save_plot=True,
-        output_dir="examples/incidents/output",
+        output_dir="examples/incidents/plot",
     )
+
+    # save transitions
+    transitions.to_csv("examples/incidents/results/transitions.csv", index=False)
 
     # %%
     # analyze drivers for first critical transition (example)
@@ -120,6 +141,7 @@ if not transitions.empty:
 
             display_transition_drivers(driver_analysis)
 
-print("\nAnalysis complete. Check examples/incidents/output/ for plots.")
+print()
+print("Analysis complete. Check examples/incidents/plot/ and examples/incidents/results/")
 
 # %%

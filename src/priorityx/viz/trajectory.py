@@ -20,13 +20,13 @@ def plot_movement_trajectories(
     """
     Visualize entity trajectories through priority space.
 
-    Shows how entities move through (X, Y) coordinates over time,
-    with arrows indicating direction and markers for start/end points.
+    Shows cumulative movement trajectories over time,
+    with quarterly markers showing progression.
 
     Args:
         movement_df: DataFrame from track_cumulative_movement()
                     Required columns: entity, quarter, period_x, period_y,
-                    period_quadrant, global_quadrant
+                    global_quadrant
         entity_name: Name for entity type (default: "Entity")
         highlight_entities: Specific entities to highlight (default: None = auto-select)
         max_entities: Maximum entities to show (default: 10)
@@ -83,12 +83,12 @@ def plot_movement_trajectories(
     # create figure
     fig, ax = plt.subplots(figsize=figsize)
 
-    # define colors for quadrants
+    # define colors for quadrants (tab20 - distinct hues)
     colors = {
-        "Q1": "#c2104b",  # red - crisis
-        "Q2": "#FF9636",  # orange - investigate
-        "Q3": "#5cb85c",  # green - monitor
-        "Q4": "#792f88",  # purple - low priority
+        "Q1": "#d62728",  # tab red - critical
+        "Q2": "#ff7f0e",  # tab orange - investigate
+        "Q4": "#1f77b4",  # tab blue - low priority
+        "Q3": "#2ca02c",  # tab green - monitor
     }
 
     # plot trajectories for each entity
@@ -98,70 +98,65 @@ def plot_movement_trajectories(
         if len(entity_data) < 2:
             continue
 
-        # get trajectory coordinates
+        # use period coordinates for cumulative trajectory
         x = entity_data["period_x"].values
         y = entity_data["period_y"].values
+        quarters = entity_data["quarter"].values
 
         # get color from global quadrant
         global_quad = entity_data.iloc[0]["global_quadrant"]
         color = colors.get(global_quad, "#95a5a6")
 
-        # plot trajectory line
-        ax.plot(x, y, color=color, alpha=0.5, linewidth=2, zorder=1)
+        # plot smooth trajectory line
+        ax.plot(x, y, color=color, alpha=0.6, linewidth=2, zorder=1)
 
-        # add arrows
-        for i in range(len(x) - 1):
-            dx = x[i + 1] - x[i]
-            dy = y[i + 1] - y[i]
-            ax.arrow(
-                x[i],
-                y[i],
-                dx * 0.9,
-                dy * 0.9,
-                head_width=0.1,
-                head_length=0.1,
-                fc=color,
-                ec=color,
-                alpha=0.6,
-                zorder=2,
-            )
-
-        # mark start point (circle)
+        # plot quarterly markers
         ax.scatter(
-            x[0],
-            y[0],
-            s=150,
+            x,
+            y,
+            s=80,
             c=color,
             marker="o",
-            edgecolors="black",
-            linewidth=2,
-            alpha=0.8,
+            edgecolors="white",
+            linewidth=1.5,
+            alpha=0.9,
             zorder=3,
         )
 
-        # mark end point (square)
-        ax.scatter(
-            x[-1],
-            y[-1],
-            s=150,
-            c=color,
-            marker="s",
-            edgecolors="black",
-            linewidth=2,
+        # add quarter labels on first and last points
+        ax.annotate(
+            quarters[0],
+            (x[0], y[0]),
+            xytext=(0, 8),
+            textcoords="offset points",
+            fontsize=8,
+            color=color,
+            ha="center",
             alpha=0.8,
-            zorder=3,
+        )
+
+        ax.annotate(
+            quarters[-1],
+            (x[-1], y[-1]),
+            xytext=(0, 8),
+            textcoords="offset points",
+            fontsize=8,
+            color=color,
+            ha="center",
+            alpha=0.8,
         )
 
         # add entity label at end point
         ax.annotate(
             entity,
             (x[-1], y[-1]),
-            xytext=(5, 5),
+            xytext=(8, -8),
             textcoords="offset points",
             fontsize=10,
             color=color,
             fontweight="bold",
             alpha=0.9,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor=color, alpha=0.7),
         )
 
     # add quadrant dividers
@@ -173,10 +168,10 @@ def plot_movement_trajectories(
     ylim = ax.get_ylim()
 
     quadrant_labels = {
-        "Q1": ("Q1: Critical", (xlim[1] * 0.9, ylim[1] * 0.9)),
-        "Q2": ("Q2: Investigate", (xlim[0] * 0.9, ylim[1] * 0.9)),
-        "Q3": ("Q3: Monitor", (xlim[0] * 0.9, ylim[0] * 0.9)),
-        "Q4": ("Q4: Low Priority", (xlim[1] * 0.9, ylim[0] * 0.9)),
+        "Q1": ("Q1\nCritical", (xlim[1] * 0.85, ylim[1] * 0.85)),
+        "Q2": ("Q2\nEmerging", (xlim[0] * 0.85, ylim[1] * 0.85)),
+        "Q3": ("Q3\nLow Priority", (xlim[0] * 0.85, ylim[0] * 0.85)),
+        "Q4": ("Q4\nPersistent", (xlim[1] * 0.85, ylim[0] * 0.85)),
     }
 
     for label, (x_pos, y_pos) in quadrant_labels.values():
@@ -194,51 +189,34 @@ def plot_movement_trajectories(
         )
 
     # set labels
-    ax.set_xlabel(f"{entity_name} Volume (Relative)", fontsize=13)
-    ax.set_ylabel(f"{entity_name} Growth Rate (Relative)", fontsize=13)
+    ax.set_xlabel("X-axis: Volume (Random Intercept)", fontsize=13)
+    ax.set_ylabel("Y-axis: Growth Rate (Random Slope)", fontsize=13)
 
     if title:
         ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
     else:
         ax.set_title(
-            f"{entity_name} Movement Trajectories",
+            f"{entity_name} Cumulative Trajectory",
             fontsize=16,
             fontweight="bold",
             pad=20,
         )
 
-    # add legend for markers
+    # add legend for quadrants
     from matplotlib.lines import Line2D
 
-    marker_legend = [
-        Line2D(
-            [0],
-            [0],
-            marker="o",
-            color="w",
-            markerfacecolor="gray",
-            markersize=10,
-            label="Start",
-            markeredgecolor="black",
-            markeredgewidth=2,
-        ),
-        Line2D(
-            [0],
-            [0],
-            marker="s",
-            color="w",
-            markerfacecolor="gray",
-            markersize=10,
-            label="End",
-            markeredgecolor="black",
-            markeredgewidth=2,
-        ),
+    quadrant_legend = [
+        Line2D([0], [0], color=colors["Q1"], linewidth=3, label="Q1 (Global)"),
+        Line2D([0], [0], color=colors["Q2"], linewidth=3, label="Q2 (Global)"),
+        Line2D([0], [0], color=colors["Q3"], linewidth=3, label="Q3 (Global)"),
+        Line2D([0], [0], color=colors["Q4"], linewidth=3, label="Q4 (Global)"),
     ]
     ax.legend(
-        handles=marker_legend,
+        handles=quadrant_legend,
         loc="upper left",
         frameon=False,
         fontsize=10,
+        title="Quadrants",
     )
 
     plt.tight_layout()

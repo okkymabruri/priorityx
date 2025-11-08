@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
-def plot_movement_trajectories(
+def plot_entity_trajectories(
     movement_df: pd.DataFrame,
     entity_name: str = "Entity",
     highlight_entities: Optional[List[str]] = None,
@@ -20,8 +20,8 @@ def plot_movement_trajectories(
     """
     Visualize entity trajectories through priority space.
 
-    Shows cumulative movement trajectories over time,
-    with quarterly markers showing progression.
+    Shows cumulative entity trajectories over time using quarterly markers,
+    displaying how entities move through priority quadrants.
 
     Args:
         movement_df: DataFrame from track_cumulative_movement()
@@ -41,10 +41,10 @@ def plot_movement_trajectories(
 
     Examples:
         >>> # auto-select top movers
-        >>> fig = plot_movement_trajectories(movement_df, entity_name="Service")
+        >>> fig = plot_entity_trajectories(movement_df, entity_name="Service")
 
         >>> # highlight specific entities
-        >>> fig = plot_movement_trajectories(
+        >>> fig = plot_entity_trajectories(
         ...     movement_df,
         ...     highlight_entities=["Service A", "Service B"],
         ...     max_entities=5
@@ -196,7 +196,7 @@ def plot_movement_trajectories(
         ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
     else:
         ax.set_title(
-            f"{entity_name} Cumulative Trajectory",
+            f"{entity_name} Entity Trajectory",
             fontsize=16,
             fontweight="bold",
             pad=20,

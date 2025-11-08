@@ -178,12 +178,12 @@ fig = plot_transition_timeline(
 
 Creates timeline heatmap of transitions.
 
-### plot_movement_trajectories
+### plot_entity_trajectories
 
 ```python
-from priorityx.viz.trajectory import plot_movement_trajectories
+from priorityx.viz.trajectory import plot_entity_trajectories
 
-fig = plot_movement_trajectories(
+fig = plot_entity_trajectories(
     movement_df,
     entity_name="Entity",
     max_entities=10,
@@ -192,7 +192,7 @@ fig = plot_movement_trajectories(
 )
 ```
 
-Creates trajectory plot showing movement through priority space.
+Creates trajectory plot showing entity paths through priority space.
 
 ---
 

@@ -11,7 +11,7 @@ from priorityx.tracking.drivers import (
 )
 from priorityx.viz.matrix import plot_priority_matrix
 from priorityx.viz.timeline import plot_transition_timeline
-from priorityx.viz.trajectory import plot_movement_trajectories
+from priorityx.viz.trajectory import plot_entity_trajectories
 from priorityx.utils.helpers import display_quadrant_summary, display_transition_summary
 
 # %%
@@ -75,8 +75,8 @@ print(
 # save movement
 movement.to_csv("examples/incidents/results/movement.csv", index=False)
 
-# visualize movement trajectories
-plot_movement_trajectories(
+# visualize entity trajectories
+plot_entity_trajectories(
     movement,
     entity_name="Service",
     max_entities=5,

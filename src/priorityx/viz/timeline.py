@@ -5,6 +5,8 @@ from typing import List, Literal, Optional, Tuple
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from priorityx.tracking.transitions import classify_priority
+
 
 def plot_transition_timeline(
     transitions_df: pd.DataFrame,
@@ -12,7 +14,7 @@ def plot_transition_timeline(
     highlight_risk_levels: List[str] = ["critical", "high"],
     filter_risk_levels: List[str] = ["critical", "high", "medium"],
     max_entities: Optional[int] = 20,
-    figsize: Tuple[int, int] = (14, 8),
+    figsize: Tuple[int, int] = (16, 12),
     title: Optional[str] = None,
     x_axis_granularity: Literal["quarterly", "semiannual", "yearly"] = "quarterly",
     sort_by_risk_first: bool = True,
@@ -22,6 +24,7 @@ def plot_transition_timeline(
     save_csv: bool = False,
     output_dir: str = "plot",
     temporal_granularity: str = "quarterly",
+    movement_df: Optional[pd.DataFrame] = None,
 ) -> plt.Figure:
     """
     Visualize transition timeline as heatmap.
@@ -47,6 +50,7 @@ def plot_transition_timeline(
         save_csv: Save data to CSV
         output_dir: Output directory for saved files
         temporal_granularity: Time granularity for file naming
+        movement_df: Optional movement DataFrame for priority calculation
 
     Returns:
         Matplotlib figure
@@ -171,35 +175,100 @@ def plot_transition_timeline(
     # create y-axis positions
     y_positions = {entity: i for i, entity in enumerate(entities)}
 
-    # color map for risk levels (tab20 - distinct hues)
-    risk_colors = {
-        "critical": "#d62728",  # tab red
-        "high": "#ff7f0e",  # tab orange
-        "medium": "#ffbb78",  # tab orange (light)
-        "low": "#98df8a",  # tab green (light)
+    # color map for priority levels (4-tier system)
+    priority_colors = {
+        1: "#d62728",  # red - crisis
+        2: "#ff7f0e",  # orange - investigate
+        3: "#ffdd57",  # yellow - monitor
+        4: "#2ca02c",  # green - low
     }
 
     # create figure
     fig, ax = plt.subplots(figsize=figsize)
 
     # plot transitions
+    priorities_present = set()
     for _, transition in df.iterrows():
         y_pos = y_positions[transition["entity"]]
         x_pos = periods.index(transition["period"])
 
-        color = risk_colors.get(transition["risk_level"], "#95a5a6")
+        # calculate priority if movement data available
+        spike_axis = None
+        if movement_df is not None:
+            entity_movement = movement_df[
+                (movement_df["entity"] == transition["entity"])
+                & (movement_df["quarter"] == transition["transition_quarter"])
+            ]
+
+            if len(entity_movement) > 0:
+                row = entity_movement.iloc[0]
+                prev_quarter_data = movement_df[
+                    (movement_df["entity"] == transition["entity"])
+                    & (movement_df["quarter"] < transition["transition_quarter"])
+                ]
+
+                if len(prev_quarter_data) > 0:
+                    prev_row = prev_quarter_data.iloc[-1]
+
+                    # get count column (handle both naming conventions)
+                    count_col = (
+                        "complaints_to_date"
+                        if "complaints_to_date" in row.index
+                        else "count_to_date"
+                    )
+
+                    complaints_delta = int(row[count_col] - prev_row[count_col])
+                    percent_change = (
+                        (row[count_col] - prev_row[count_col])
+                        / prev_row[count_col]
+                        * 100
+                        if prev_row[count_col] > 0
+                        else 0
+                    )
+
+                    priority, _, spike_axis = classify_priority(
+                        from_quadrant=transition["from_quadrant"],
+                        to_quadrant=transition["to_quadrant"],
+                        x=row["period_x"],
+                        y=row["period_y"],
+                        x_delta=row["period_x"] - prev_row["period_x"],
+                        y_delta=row["period_y"] - prev_row["period_y"],
+                        complaints_delta=complaints_delta,
+                        percent_change=percent_change,
+                    )
+                else:
+                    priority = 2  # default to "investigate"
+            else:
+                priority = 2
+        else:
+            priority = 2
+
+        priorities_present.add(priority)
+
+        # get priority color
+        color = priority_colors.get(priority, "#95a5a6")
 
         # plot circle
         ax.scatter(x_pos, y_pos, s=100, c=color, alpha=0.8, zorder=2)
 
-        # add transition label
+        # add transition label with spike indicator
         label = f"{transition['from_quadrant']}→{transition['to_quadrant']}"
+
+        if spike_axis:
+            # add superscript indicator
+            if spike_axis == "Y":
+                label += "*$^Y$"
+            elif spike_axis == "X":
+                label += "*$^X$"
+            elif spike_axis == "XY":
+                label += "*$^{XY}$"
+
         ax.annotate(
             label,
             (x_pos, y_pos),
             xytext=(8, 0),
             textcoords="offset points",
-            fontsize=9,
+            fontsize=12,
             color="black",
             va="center",
             alpha=0.8,
@@ -207,7 +276,7 @@ def plot_transition_timeline(
 
     # customize plot
     ax.set_yticks(range(len(entities)))
-    ax.set_yticklabels(entities)
+    ax.set_yticklabels(entities, fontsize=15)
     ax.invert_yaxis()  # highest priority at top
 
     # x-axis labels
@@ -233,7 +302,8 @@ def plot_transition_timeline(
         period_labels = periods
 
     ax.set_xticks(range(len(periods)))
-    ax.set_xticklabels(period_labels, rotation=45, ha="right")
+    tick_fontsize = 15
+    ax.set_xticklabels(period_labels, rotation=45, ha="right", fontsize=tick_fontsize)
     ax.set_xlim(-0.5, len(periods) - 0.5)
 
     # clean up borders
@@ -242,40 +312,55 @@ def plot_transition_timeline(
     ax.spines["top"].set_visible(False)
 
     # build legend
+    priority_defs = [
+        (1, "#d62728", "Crisis"),
+        (2, "#ff7f0e", "Investigate"),
+        (3, "#ffdd57", "Monitor"),
+        (4, "#2ca02c", "Low"),
+    ]
+
     legend_elements = []
-    for risk_level in ["critical", "high", "medium", "low"]:
-        if risk_level in df["risk_level"].values:
+    for priority, color, label in priority_defs:
+        if priority in priorities_present:
             legend_elements.append(
-                plt.scatter(
-                    [],
-                    [],
-                    s=100,
-                    c=risk_colors[risk_level],
-                    alpha=0.8,
-                    label=risk_level.capitalize(),
-                )
+                plt.scatter([], [], s=100, c=color, alpha=0.8, label=label)
             )
 
     if legend_elements:
+        legend_fontsize = 15
         ax.legend(
             handles=legend_elements,
             loc="center left",
             bbox_to_anchor=(1.02, 0.5),
-            title="Risk Level",
-            fontsize=10,
-            title_fontsize=11,
+            title="Priority",
+            fontsize=legend_fontsize,
+            title_fontsize=legend_fontsize,
             frameon=False,
+        )
+
+        # add superscript note below legend
+        ax.text(
+            1.02,
+            0.25,
+            "*$^Y$ = Y-axis spike\n*$^X$ = X-axis spike",
+            transform=ax.transAxes,
+            fontsize=12,
+            ha="left",
+            va="top",
         )
 
     # set labels
     xlabel_map = {"quarterly": "Quarter", "semiannual": "Semester", "yearly": "Year"}
-    ax.set_xlabel(xlabel_map.get(x_axis_granularity, "Period"), fontsize=13)
-    ax.set_ylabel(entity_name, fontsize=13)
+    axis_fontsize = 15
+    ax.set_xlabel(xlabel_map.get(x_axis_granularity, "Period"), fontsize=axis_fontsize)
+    ax.set_ylabel(entity_name, fontsize=axis_fontsize)
+    ax.set_yticklabels(entities, fontsize=tick_fontsize)
 
-    if title:
-        ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
+    if title is None:
+        title = f"{entity_name} Transition Timeline"
+    ax.set_title(title, fontsize=17, fontweight="bold", pad=20)
 
-    ax.tick_params(axis="both", which="major", labelsize=10)
+    ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
     plt.tight_layout()
 
     # save plot if requested
@@ -290,7 +375,7 @@ def plot_transition_timeline(
             "yearly": "Y",
             "semiannual": "S",
         }.get(temporal_granularity, "Q")
-        plot_path = f"{output_dir}/transitions-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
+        plot_path = f"{output_dir}/transition_timeline-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
         plt.savefig(plot_path, dpi=300, bbox_inches="tight", format="png")
         print(f"Transition plot saved: {plot_path}")
 

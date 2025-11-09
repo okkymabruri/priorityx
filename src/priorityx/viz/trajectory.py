@@ -5,16 +5,19 @@ from typing import List, Optional, Tuple
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from priorityx.utils.helpers import save_dataframe_to_csv
 
 def plot_entity_trajectories(
     movement_df: pd.DataFrame,
     entity_name: str = "Entity",
     highlight_entities: Optional[List[str]] = None,
     max_entities: int = 10,
-    figsize: Tuple[int, int] = (14, 10),
+    figsize: Tuple[int, int] = (16, 12),
     title: Optional[str] = None,
     save_plot: bool = True,
+    save_csv: bool = False,
     output_dir: str = "plot",
+    results_dir: Optional[str] = None,
     temporal_granularity: str = "quarterly",
 ) -> plt.Figure:
     """
@@ -85,11 +88,20 @@ def plot_entity_trajectories(
 
     # define colors for quadrants (tab20 - distinct hues)
     colors = {
-        "Q1": "#d62728",  # tab red - critical
-        "Q2": "#ff7f0e",  # tab orange - investigate
-        "Q4": "#1f77b4",  # tab blue - low priority
-        "Q3": "#2ca02c",  # tab green - monitor
+        "Q1": "#d62728",  # critical
+        "Q2": "#ff7f0e",  # investigate
+        "Q4": "#1f77b4",  # low priority
+        "Q3": "#2ca02c",  # monitor
     }
+    quadrant_display = {
+        "Q1": "Q1 (Critical)",
+        "Q2": "Q2 (Investigate)",
+        "Q3": "Q3 (Monitor)",
+        "Q4": "Q4 (Low Priority)",
+    }
+
+    # track usage counts per color to slightly vary hue if needed
+    used_colors = {}
 
     # plot trajectories for each entity
     for entity in entities_to_plot:
@@ -105,16 +117,33 @@ def plot_entity_trajectories(
 
         # get color from global quadrant
         global_quad = entity_data.iloc[0]["global_quadrant"]
-        color = colors.get(global_quad, "#95a5a6")
+        
+        # find alternative color if already used
+        base_color = colors.get(global_quad, "#95a5a6")
+        color = base_color
+        
+        used_colors[base_color] = used_colors.get(base_color, 0) + 1
+        if used_colors[base_color] > 1:
+            # generate darker shade for same quadrant (better contrast)
+            if base_color == "#d62728":  # Q1 red
+                color = "#cc0000"  # darker red
+            elif base_color == "#ff7f0e":  # Q2 orange
+                color = "#cc6600"  # darker orange
+            elif base_color == "#1f77b4":  # Q4 blue
+                color = "#0066cc"  # darker blue
+            elif base_color == "#2ca02c":  # Q3 green
+                color = "#006600"  # darker green
+        else:
+            color = base_color
 
         # plot smooth trajectory line
         ax.plot(x, y, color=color, alpha=0.6, linewidth=2, zorder=1)
 
-        # plot quarterly markers
+        # plot quarterly markers with unique shapes for overlapping entities
         ax.scatter(
             x,
             y,
-            s=80,
+            s=90,
             c=color,
             marker="o",
             edgecolors="white",
@@ -129,8 +158,8 @@ def plot_entity_trajectories(
             (x[0], y[0]),
             xytext=(0, 8),
             textcoords="offset points",
-            fontsize=8,
-            color=color,
+            fontsize=10,
+            color="black",
             ha="center",
             alpha=0.8,
         )
@@ -140,48 +169,43 @@ def plot_entity_trajectories(
             (x[-1], y[-1]),
             xytext=(0, 8),
             textcoords="offset points",
-            fontsize=8,
-            color=color,
+            fontsize=10,
+            color="black",
             ha="center",
             alpha=0.8,
         )
 
-        # add entity label at end point
         ax.annotate(
             entity,
             (x[-1], y[-1]),
             xytext=(8, -8),
             textcoords="offset points",
             fontsize=10,
-            color=color,
-            fontweight="bold",
+            color="black",
             alpha=0.9,
-            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor=color, alpha=0.7),
         )
 
-    # add quadrant dividers
-    ax.axhline(0, color="grey", linestyle="--", alpha=0.7, linewidth=1, zorder=0)
-    ax.axvline(0, color="grey", linestyle="--", alpha=0.7, linewidth=1, zorder=0)
+    # quadrant dividers will be added later with improved styling
 
     # add quadrant labels
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
 
-    quadrant_labels = {
-        "Q1": ("Q1\nCritical", (xlim[1] * 0.85, ylim[1] * 0.85)),
-        "Q2": ("Q2\nEmerging", (xlim[0] * 0.85, ylim[1] * 0.85)),
-        "Q3": ("Q3\nLow Priority", (xlim[0] * 0.85, ylim[0] * 0.85)),
-        "Q4": ("Q4\nPersistent", (xlim[1] * 0.85, ylim[0] * 0.85)),
+    quadrant_positions = {
+        "Q1": (xlim[1] * 0.85, ylim[1] * 0.85),
+        "Q2": (xlim[0] * 0.85, ylim[1] * 0.85),
+        "Q3": (xlim[0] * 0.85, ylim[0] * 0.85),
+        "Q4": (xlim[1] * 0.85, ylim[0] * 0.85),
     }
 
-    for label, (x_pos, y_pos) in quadrant_labels.values():
+    for quadrant, (x_pos, y_pos) in quadrant_positions.items():
         ax.text(
             x_pos,
             y_pos,
-            label,
+            quadrant_display[quadrant],
             ha="center",
             va="center",
-            fontsize=12,
+            fontsize=15,
             color="gray",
             alpha=0.3,
             fontweight="bold",
@@ -189,15 +213,16 @@ def plot_entity_trajectories(
         )
 
     # set labels
-    ax.set_xlabel("X-axis: Volume (Random Intercept)", fontsize=13)
-    ax.set_ylabel("Y-axis: Growth Rate (Random Slope)", fontsize=13)
+    axis_fontsize = 15
+    ax.set_xlabel("X-axis: Volume (Random Intercept)", fontsize=axis_fontsize)
+    ax.set_ylabel("Y-axis: Growth Rate (Random Slope)", fontsize=axis_fontsize)
 
     if title:
-        ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
+        ax.set_title(title, fontsize=17, fontweight="bold", pad=20)
     else:
         ax.set_title(
             f"{entity_name} Entity Trajectory",
-            fontsize=16,
+            fontsize=17,
             fontweight="bold",
             pad=20,
         )
@@ -206,18 +231,31 @@ def plot_entity_trajectories(
     from matplotlib.lines import Line2D
 
     quadrant_legend = [
-        Line2D([0], [0], color=colors["Q1"], linewidth=3, label="Q1 (Global)"),
-        Line2D([0], [0], color=colors["Q2"], linewidth=3, label="Q2 (Global)"),
-        Line2D([0], [0], color=colors["Q3"], linewidth=3, label="Q3 (Global)"),
-        Line2D([0], [0], color=colors["Q4"], linewidth=3, label="Q4 (Global)"),
+        Line2D([0], [0], color=colors[quadrant], linewidth=3, label=quadrant_display[quadrant])
+        for quadrant in ["Q1", "Q2", "Q3", "Q4"]
     ]
+    legend_fontsize = 15
     ax.legend(
         handles=quadrant_legend,
         loc="upper left",
         frameon=False,
-        fontsize=10,
+        fontsize=legend_fontsize,
         title="Quadrants",
+        title_fontsize=legend_fontsize,
     )
+
+    # remove plot borders for cleaner look
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    
+    # keep quadrant dividers but make them more subtle
+    ax.axhline(0, color="lightgray", linestyle="-", alpha=0.4, linewidth=0.8, zorder=0)
+    ax.axvline(0, color="lightgray", linestyle="-", alpha=0.4, linewidth=0.8, zorder=0)
+
+    tick_fontsize = 15
+    ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
 
     plt.tight_layout()
 
@@ -233,8 +271,19 @@ def plot_entity_trajectories(
             "yearly": "Y",
             "semiannual": "S",
         }.get(temporal_granularity, "Q")
-        plot_path = f"{output_dir}/cumulative_movement-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
+        plot_path = f"{output_dir}/trajectories-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
         plt.savefig(plot_path, dpi=300, bbox_inches="tight", format="png")
-        print(f"Movement plot saved: {plot_path}")
+        print(f"Entity trajectory plot saved: {plot_path}")
+
+    if save_csv:
+        target_dir = results_dir if results_dir else f"{output_dir}/../results"
+        csv_path = save_dataframe_to_csv(
+            movement_df,
+            artifact="trajectories",
+            entity_name=entity_name,
+            temporal_granularity=temporal_granularity,
+            output_dir=target_dir,
+        )
+        print(f"Trajectories CSV saved: {csv_path}")
 
     return fig

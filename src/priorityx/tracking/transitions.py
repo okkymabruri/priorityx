@@ -184,7 +184,7 @@ def extract_transitions(
                             "entity": entity,
                             "transition_quarter": next_row["quarter"],
                             "from_quadrant": curr_row["period_quadrant"],
-                            "to_quadrant": f"{next_row['period_quadrant']}*",  # * = within-quadrant
+                            "to_quadrant": f"{next_row['period_quadrant']}*Y",  # *Y = growth spike
                             "risk_level": "critical",
                             "volume_change": volume_change,
                             "growth_change": growth_change,
@@ -200,7 +200,7 @@ def extract_transitions(
                             "entity": entity,
                             "transition_quarter": next_row["quarter"],
                             "from_quadrant": curr_row["period_quadrant"],
-                            "to_quadrant": f"{next_row['period_quadrant']}*",
+                            "to_quadrant": f"{next_row['period_quadrant']}*X",  # *X = volume spike
                             "risk_level": "high",
                             "volume_change": volume_change,
                             "growth_change": growth_change,
@@ -210,3 +210,90 @@ def extract_transitions(
                     )
 
     return pd.DataFrame(transitions)
+
+
+def classify_priority(
+    from_quadrant: str,
+    to_quadrant: str,
+    x: float,
+    y: float,
+    x_delta: float,
+    y_delta: float,
+    complaints_delta: int,
+    percent_change: float,
+) -> tuple:
+    """
+    Classify supervisory priority (4-tier: Crisis/Investigate/Monitor/Low).
+
+    Uses movement dynamics (velocity, direction, magnitude) to determine
+    action urgency beyond simple quadrant transitions.
+
+    Args:
+        from_quadrant: Starting quadrant (Q1-Q4)
+        to_quadrant: Ending quadrant (Q1-Q4)
+        x: Current X-axis position (volume)
+        y: Current Y-axis position (growth rate)
+        x_delta: Change in X-axis (volume change)
+        y_delta: Change in Y-axis (growth rate change)
+        complaints_delta: Absolute change in complaints
+        percent_change: Percentage change in complaints
+
+    Returns:
+        Tuple of (priority, reason, spike_axis) where:
+        - priority: 1=Crisis, 2=Investigate, 3=Monitor, 4=Low
+        - reason: Explanation string
+        - spike_axis: 'Y', 'X', 'XY', or None
+
+    Examples:
+        >>> # dramatic acceleration
+        >>> classify_priority("Q2", "Q1", 1.2, 0.8, 0.3, 0.5, 150, 200)
+        (1, "Crisis: Extreme movement (ΔX=0.30, ΔY=0.50)", 'Y')
+
+        >>> # moderate movement
+        >>> classify_priority("Q3", "Q2", 0.5, 0.4, 0.1, 0.2, 30, 50)
+        (2, "Velocity trigger (ΔX=0.10, ΔY=0.20)", None)
+    """
+    # check if borderline (within ±0.1 of threshold)
+    is_borderline = abs(x) <= 0.1 or abs(y) <= 0.1
+
+    # check if moving to Q1 (critical quadrant)
+    to_critical = to_quadrant == "Q1"
+
+    # determine spike axis for Crisis level (0.4 = 2.74 SD, aligns with 3-sigma rule)
+    y_spike = abs(y_delta) > 0.4
+    x_spike = abs(x_delta) > 0.4
+    explosion = percent_change > 500 and complaints_delta > 50
+
+    # Priority 1: Crisis
+    if y_spike or x_spike or explosion:
+        if y_spike and x_spike:
+            spike_axis = "XY"
+        elif y_spike:
+            spike_axis = "Y"
+        elif x_spike:
+            spike_axis = "X"
+        else:
+            spike_axis = "Y"  # default for explosions
+
+        return (
+            1,
+            f"Crisis: Extreme movement (ΔX={x_delta:.2f}, ΔY={y_delta:.2f})",
+            spike_axis,
+        )
+
+    # Priority 2: Investigate
+    if abs(x_delta) > 0.15 or abs(y_delta) > 0.15:
+        return 2, f"Velocity trigger (ΔX={x_delta:.2f}, ΔY={y_delta:.2f})", None
+
+    if to_critical and not is_borderline:
+        return 2, "Critical destination, clear (→Q1)", None
+
+    if percent_change > 100 and complaints_delta >= 5:
+        return 2, f"Growth shock (+{complaints_delta}, {percent_change:.0f}%)", None
+
+    # Priority 3: Monitor
+    if is_borderline or to_critical:
+        return 3, "Borderline/threshold crossing", None
+
+    # Priority 4: Low (improvements, stable)
+    return 4, "Routine/improving", None

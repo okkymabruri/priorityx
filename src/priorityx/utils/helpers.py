@@ -1,5 +1,8 @@
 """Display and summary utilities."""
 
+import os
+from datetime import datetime
+
 import pandas as pd
 
 
@@ -230,3 +233,68 @@ def get_transition_counts(transitions_df: pd.DataFrame) -> pd.DataFrame:
     summary = summary.sort_values("order").drop("order", axis=1)
 
     return summary
+
+
+def generate_output_path(
+    artifact: str,
+    entity_name: str,
+    temporal_granularity: str = "quarterly",
+    output_dir: str = "results",
+    extension: str = "csv",
+) -> str:
+    """Generate a standardized output path for saved artifacts.
+
+    Args:
+        artifact: Artifact name prefix (e.g., "priority_matrix", "movement")
+        entity_name: Friendly entity label (e.g., "Service")
+        temporal_granularity: Granularity key for suffix (default: "quarterly")
+        output_dir: Directory where file should be saved
+        extension: File extension (default: "csv")
+
+    Returns:
+        Absolute path to the output file within ``output_dir``.
+    """
+
+    granularity_suffix = {
+        "quarterly": "Q",
+        "yearly": "Y",
+        "semiannual": "S",
+    }.get(temporal_granularity, "Q")
+
+    timestamp = datetime.now().strftime("%Y%m%d")
+    entity_slug = entity_name.lower().replace(" ", "_")
+
+    os.makedirs(output_dir, exist_ok=True)
+    filename = f"{artifact}-{entity_slug}-{granularity_suffix}-{timestamp}.{extension}"
+    return os.path.join(output_dir, filename)
+
+
+def save_dataframe_to_csv(
+    df: pd.DataFrame,
+    artifact: str,
+    entity_name: str,
+    temporal_granularity: str = "quarterly",
+    output_dir: str = "results",
+) -> str:
+    """Save a DataFrame using the standardized naming convention.
+
+    Args:
+        df: DataFrame to save
+        artifact: Artifact name (e.g., "movement")
+        entity_name: Friendly entity label for naming
+        temporal_granularity: Granularity key for suffix
+        output_dir: Directory where file should live
+
+    Returns:
+        Path to the saved CSV file.
+    """
+
+    output_path = generate_output_path(
+        artifact,
+        entity_name,
+        temporal_granularity=temporal_granularity,
+        output_dir=output_dir,
+        extension="csv",
+    )
+    df.to_csv(output_path, index=False)
+    return output_path

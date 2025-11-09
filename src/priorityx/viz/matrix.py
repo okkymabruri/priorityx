@@ -137,6 +137,12 @@ def plot_priority_matrix(
         "Q4": "#1f77b4",  # tab blue - low priority
         "Q3": "#2ca02c",  # tab green - monitor
     }
+    quadrant_display = {
+        "Q1": "Q1 (Critical)",
+        "Q2": "Q2 (Investigate)",
+        "Q3": "Q3 (Monitor)",
+        "Q4": "Q4 (Low Priority)",
+    }
 
     # plot all points
     for q, color in colors.items():
@@ -172,23 +178,15 @@ def plot_priority_matrix(
             "Q4": ((0 + xlim[1]) / 2, (ylim[0] + 0) / 2),  # bottom right
         }
 
-        # quadrant descriptions
-        quadrant_labels = {
-            "Q1": "Q1: Critical\n(High volume, High growth)",
-            "Q2": "Q2: Investigate\n(Low volume, High growth)",
-            "Q3": "Q3: Monitor\n(Low volume, Low growth)",
-            "Q4": "Q4: Low Priority\n(High volume, Low growth)",
-        }
-
         # place labels
         for q, (cx, cy) in quadrant_centers.items():
             ax.text(
                 cx,
                 cy,
-                quadrant_labels[q],
+                quadrant_display[q],
                 ha="center",
                 va="center",
-                fontsize=14,
+                fontsize=15,
                 color="gray",
                 alpha=0.45,
                 zorder=0,
@@ -232,6 +230,8 @@ def plot_priority_matrix(
         ticker.MaxNLocator(integer=False, steps=[1, 2, 5], nbins=7)
     )
     ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.1f"))
+    tick_fontsize = 15
+    ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
 
     # create legend with equal-sized bubbles
     legend_elements = []
@@ -244,21 +244,29 @@ def plot_priority_matrix(
                 color="w",
                 markerfacecolor=color,
                 markersize=10,
-                label=f"Quadrant {q[-1]}",
+                label=quadrant_display[q],
             )
         )
 
     # set labels
-    plt.xlabel(f"{entity_name} Volume (Relative)", fontsize=13)
-    plt.ylabel(f"{entity_name} Growth Rate (Relative)", fontsize=13)
+    axis_fontsize = 15
+    plt.xlabel(f"{entity_name} Volume (Relative)", fontsize=axis_fontsize)
+    plt.ylabel(f"{entity_name} Growth Rate (Relative)", fontsize=axis_fontsize)
 
     # add title if provided
-    if title:
-        plt.title(title, fontsize=16, fontweight="bold", pad=20)
+    if title is None:
+        title = f"{entity_name} Priority Matrix"
+    plt.title(title, fontsize=17, fontweight="bold", pad=20)
 
     # place legend
+    legend_fontsize = 15
     plt.legend(
-        handles=legend_elements, loc="lower right", frameon=False, title="Quadrants"
+        handles=legend_elements,
+        loc="lower right",
+        frameon=False,
+        title="Quadrants",
+        fontsize=legend_fontsize,
+        title_fontsize=legend_fontsize,
     )
 
     # remove chart borders

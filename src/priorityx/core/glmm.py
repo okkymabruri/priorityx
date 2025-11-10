@@ -2,6 +2,7 @@
 
 from typing import Dict, Literal, Optional, Tuple
 from datetime import timedelta
+import os
 import numpy as np
 
 import pandas as pd
@@ -10,6 +11,36 @@ from statsmodels.genmod.bayes_mixed_glm import PoissonBayesMixedGLM
 # default priors (validated on regulatory data)
 DEFAULT_VCP_P = 3.5  # prior scale for random effects (higher = less shrinkage)
 DEFAULT_FE_P = 3.0  # prior scale for fixed effects
+
+_ENV_VAR_NAME = "PRIORITYX_GLMM_SEED"
+_GLMM_RANDOM_SEED: Optional[int] = None
+_GLMM_SEED_APPLIED = False
+
+_env_seed = os.getenv(_ENV_VAR_NAME)
+if _env_seed is not None:
+    try:
+        _GLMM_RANDOM_SEED = int(_env_seed)
+    except ValueError:
+        _GLMM_RANDOM_SEED = None
+
+
+def set_glmm_random_seed(seed: Optional[int]) -> None:
+    """Configure deterministic seeding for GLMM estimations."""
+
+    global _GLMM_RANDOM_SEED, _GLMM_SEED_APPLIED
+    _GLMM_RANDOM_SEED = seed
+    _GLMM_SEED_APPLIED = False
+
+
+def _apply_random_seed() -> None:
+    """Apply configured random seed exactly once per process."""
+
+    global _GLMM_SEED_APPLIED
+    if _GLMM_SEED_APPLIED:
+        return
+    if _GLMM_RANDOM_SEED is not None:
+        np.random.seed(_GLMM_RANDOM_SEED)
+    _GLMM_SEED_APPLIED = True
 
 
 def _extract_random_effects(
@@ -277,8 +308,25 @@ def fit_priority_matrix(
         fe_p=fe_p,
     )
 
+    # DIAGNOSTIC LOGGING
+    print(f"\n[GLMM DEBUG] Formula: {formula}")
+    print(f"[GLMM DEBUG] N observations: {len(df_prepared)}")
+    print(f"[GLMM DEBUG] N entities: {df_prepared[entity_col].nunique()}")
+    print(f"[GLMM DEBUG] Year range: {df_prepared['year'].min()}-{df_prepared['year'].max()}")
+    print(f"[GLMM DEBUG] Time variable: mean={df_prepared['time'].mean():.6f}, std={df_prepared['time'].std():.6f}")
+    print(f"[GLMM DEBUG] Entity sample: {df_prepared[entity_col].unique()[:5].tolist()}")
+    print(f"[GLMM DEBUG] vcp_p={vcp_p}, fe_p={fe_p}")
+    
+    # Print first entity's data
+    first_entity = df_prepared[entity_col].iloc[0]
+    entity_data = df_prepared[df_prepared[entity_col] == first_entity]
+    print(f"\n[GLMM DEBUG] First entity '{first_entity}' data:")
+    debug_cols = [c for c in ["year", "quarter", "semester", entity_col, "count", "time"] if c in entity_data.columns]
+    print(entity_data[debug_cols].head(10).to_string())
+
     # use variational bayes (returns posterior mean)
     # avoids boundary convergence issues vs map
+    _apply_random_seed()
     glmm_result = glmm_model.fit_vb()
 
     # extract random effects

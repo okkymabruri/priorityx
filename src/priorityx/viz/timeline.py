@@ -12,7 +12,7 @@ def plot_transition_timeline(
     transitions_df: pd.DataFrame,
     entity_filter: Optional[List[str]] = None,
     highlight_risk_levels: List[str] = ["critical", "high"],
-    filter_risk_levels: List[str] = ["critical", "high", "medium"],
+    filter_risk_levels: Optional[List[str]] = None,
     max_entities: Optional[int] = 20,
     figsize: Tuple[int, int] = (16, 12),
     title: Optional[str] = None,

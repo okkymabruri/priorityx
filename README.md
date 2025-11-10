@@ -16,6 +16,14 @@ pip install priorityx
 
 ## Quick Start
 
+### Deterministic runs
+
+Set `PRIORITYX_GLMM_SEED` (or call `set_glmm_random_seed()`) before running analyses to obtain repeatable GLMM estimates during debugging or CI checks:
+
+```bash
+PRIORITYX_GLMM_SEED=1234 python tmp/complaints_analysis.py
+```
+
 ```python
 import pandas as pd
 from priorityx.core.glmm import fit_priority_matrix
@@ -35,10 +43,10 @@ plot_priority_matrix(results, entity_name="Service", save_plot=True)
 
 ## Features
 
-- GLMM-based priority classification (Q1-Q4 quadrants)
-- Transition detection over time
-- Movement tracking
-- Visualization
+- GLMM-based priority matrix (Q1–Q4) with entity-level intercept/slope insights
+- Priority-based transition timeline (Crisis / Investigate / Monitor / Low) with spike markers (`*X`, `*Y`, `*XY`)
+- Cumulative movement tracking and trajectory visualizations
+- Deterministic seeding option for reproducible GLMM runs (set `PRIORITYX_GLMM_SEED`)
 
 ## Use Cases
 
@@ -49,3 +57,4 @@ IT incidents, software bugs, compliance violations, performance monitoring.
 - [Quick Start](docs/quickstart.md)
 - [API Reference](docs/api-reference.md)
 - [Methodology](docs/methodology.md)
+- [Priority Classification](docs/priority_classification.md)

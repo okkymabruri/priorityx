@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 from datetime import datetime, timedelta
-from priorityx.core.glmm import fit_priority_matrix
+from priorityx.core.glmm import fit_priority_matrix, set_glmm_random_seed
 
 
 def generate_test_data(n_entities=5, n_quarters=12):
@@ -65,6 +65,35 @@ def test_fit_priority_matrix_stats():
     assert "method" in stats
     assert stats["method"] == "VB"
     assert stats["temporal_granularity"] == "quarterly"
+
+
+def test_fit_priority_matrix_seed_control():
+    """Verify explicit seeding produces deterministic random effects."""
+
+    df = generate_test_data()
+
+    set_glmm_random_seed(1234)
+    results1, _ = fit_priority_matrix(
+        df,
+        entity_col="entity",
+        timestamp_col="date",
+        temporal_granularity="quarterly",
+        min_observations=6,
+    )
+
+    set_glmm_random_seed(1234)
+    results2, _ = fit_priority_matrix(
+        df,
+        entity_col="entity",
+        timestamp_col="date",
+        temporal_granularity="quarterly",
+        min_observations=6,
+    )
+
+    pd.testing.assert_frame_equal(
+        results1.sort_values("entity").reset_index(drop=True),
+        results2.sort_values("entity").reset_index(drop=True),
+    )
 
 
 def test_min_total_count_filter():

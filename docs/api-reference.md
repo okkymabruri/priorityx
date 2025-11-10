@@ -41,6 +41,8 @@ Fits Poisson GLMM to classify entities into priority quadrants.
 - `results`: DataFrame with entity, Random_Intercept, Random_Slope, count, quadrant
 - `stats`: Dictionary with model statistics
 
+> **Reproducibility:** set the environment variable `PRIORITYX_GLMM_SEED` or call `set_glmm_random_seed(value)` before invoking `fit_priority_matrix` to obtain deterministic variational Bayes estimates.
+
 ---
 
 ## Tracking Functions
@@ -172,11 +174,12 @@ fig = plot_transition_timeline(
     filter_risk_levels=["critical", "high"],
     max_entities=20,
     save_plot=False,
-    output_dir="plot"
+    output_dir="plot",
+    movement_df=movement_df
 )
 ```
 
-Creates timeline heatmap of transitions.
+Creates timeline heatmap of transitions. Passing `movement_df` is required to compute the Crisis/Investigate/Monitor/Low priority tiers and spike markers (`*X`, `*Y`, `*XY`). Omitting it falls back to legacy risk-level tags.
 
 ### plot_entity_trajectories
 

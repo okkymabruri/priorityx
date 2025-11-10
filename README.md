@@ -21,7 +21,7 @@ pip install priorityx
 Set `PRIORITYX_GLMM_SEED` (or call `set_glmm_random_seed()`) before running analyses to obtain repeatable GLMM estimates during debugging or CI checks:
 
 ```bash
-PRIORITYX_GLMM_SEED=1234 python tmp/complaints_analysis.py
+PRIORITYX_GLMM_SEED=1234 python your_script.py
 ```
 
 ```python

@@ -144,6 +144,8 @@ if len(critical_transitions) > 0:
         display_transition_drivers(driver_analysis)
 
 print()
-print("Analysis complete. Check examples/incidents/plot/ and examples/incidents/results/")
+print(
+    "Analysis complete. Check examples/incidents/plot/ and examples/incidents/results/"
+)
 
 # %%

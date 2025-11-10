@@ -47,6 +47,8 @@ Entities classified based on random effects:
 
 The count threshold for Q1 prevents low-volume entities from being mislabeled as Critical.
 
+Priority tiers applied in the transition timeline build on these quadrants with velocity-based rules (see `docs/priority_classification.md`) to differentiate Crisis, Investigate, Monitor, and Low responses.
+
 ## Movement Tracking
 
 ### Three-Step Process

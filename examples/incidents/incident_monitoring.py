@@ -1,6 +1,13 @@
 # it incident monitoring example
 
+from pathlib import Path
+from io import StringIO
+
 import pandas as pd
+import requests
+
+RAW_DATA_URL = "https://raw.githubusercontent.com/okkymabruri/priorityx/main/examples/incidents/incidents.csv"
+LOCAL_DATA_PATH = Path(__file__).parent / "incidents.csv"
 
 from priorityx.core.glmm import fit_priority_matrix
 from priorityx.tracking.movement import track_cumulative_movement
@@ -18,8 +25,15 @@ from priorityx.utils.helpers import (
     save_dataframe_to_csv,
 )
 
-# load data
-df = pd.read_csv("examples/incidents/incidents.csv")
+# load data (prefer hosted CSV so the example works out-of-the-box)
+try:
+    response = requests.get(RAW_DATA_URL, timeout=10)
+    response.raise_for_status()
+    df = pd.read_csv(StringIO(response.text))
+    print("Loaded incidents from GitHub raw URL")
+except Exception:
+    print("Falling back to local incidents.csv")
+    df = pd.read_csv(LOCAL_DATA_PATH)
 df["date"] = pd.to_datetime(df["date"])
 
 print(f"Loaded {len(df)} incidents for {df['service'].nunique()} services")
@@ -139,6 +153,8 @@ if len(critical_transitions) > 0:
             quarter_to=trans["transition_quarter"],
             entity_col="service",
             timestamp_col="date",
+            top_n_subcategories=5,
+            min_subcategory_delta=2,
         )
 
         display_transition_drivers(driver_analysis)

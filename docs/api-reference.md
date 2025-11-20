@@ -100,8 +100,9 @@ analysis = extract_transition_drivers(
     quarter_to="2024-Q3",
     entity_col="service",
     timestamp_col="date",
-    subcategory_cols=["type", "category"],  # Optional
-    text_col="description"  # Optional
+    subcategory_cols=["type", "category"],  # Optional override; auto-detected if omitted
+    top_n_subcategories=5,
+    min_subcategory_delta=2,
 )
 ```
 
@@ -115,11 +116,18 @@ Analyzes root causes of a quadrant transition.
 - `quarter_to`: Ending quarter (e.g., "2024-Q3")
 - `entity_col`: Entity column name
 - `timestamp_col`: Timestamp column name
-- `subcategory_cols`: Optional list of subcategory columns
-- `text_col`: Optional text column for keyword analysis
+- `subcategory_cols`: Optional list of subcategory columns (auto-detected when omitted)
+- `top_n_subcategories`: Limit of subcategory drivers (default: 3)
+- `min_subcategory_delta`: Minimum delta required for subcategory inclusion (default: 1)
 
 **Returns:**
-- Dictionary with transition overview, magnitude metrics, subcategory drivers, keyword drivers, and priority classification
+- Dictionary with:
+  - `transition`: includes risk-level change and `is_concerning` flag
+  - `magnitude`: cumulative deltas plus period-specific weekly averages and complaint counts
+  - `spike_drivers`: summary notes aligned with spike indicators (`*X`, `*Y`, `*XY`)
+  - `subcategory_drivers`: per-column driver lists obeying the provided knobs
+  - `priority`: priority tier, trigger reason, spike axis
+  - `meta`: diagnostic flags (e.g., whether subcategory columns were auto-detected)
 
 ### classify_priority
 
@@ -222,11 +230,10 @@ Prints formatted summaries of analysis results.
 ```python
 from priorityx.tracking.drivers import display_transition_drivers
 
-display_transition_drivers(analysis, show_keywords=True)
+display_transition_drivers(analysis)
 ```
 
 Prints transition driver analysis in human-readable format.
 
 **Parameters:**
 - `analysis`: Output from extract_transition_drivers()
-- `show_keywords`: Whether to show keyword analysis (default: False)

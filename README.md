@@ -46,6 +46,7 @@ plot_priority_matrix(results, entity_name="Service", save_plot=True)
 - GLMM-based priority matrix (Q1–Q4) with entity-level intercept/slope insights
 - Priority-based transition timeline (Crisis / Investigate / Monitor / Low) with spike markers (`*X`, `*Y`, `*XY`)
 - Cumulative movement tracking and trajectory visualizations
+- Transition driver analysis that surfaces top subcategories causing quadrant shifts with spike summaries
 - Deterministic seeding option for reproducible GLMM runs (set `PRIORITYX_GLMM_SEED`)
 
 ## Use Cases

@@ -1,10 +1,126 @@
 """Transition driver analysis for identifying root causes of quadrant transitions."""
 
 import pandas as pd
-from typing import Dict, List, Optional, Tuple
-from collections import Counter
+from typing import Dict, List, Optional, Tuple, Set
 import re
 from datetime import datetime
+from pathlib import Path
+
+DEFAULT_DRIVER_COLUMNS: Tuple[str, ...] = (
+    # products
+    "product",
+    "type",
+    # topics / issues
+    "topic",
+    "issue_type",
+    # severity / categories
+    "severity",
+    "category",
+)
+
+MAX_AUTO_SUBCATEGORY_UNIQUE = 25
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+CUSTOM_DRIVER_COLUMNS_FILE = PROJECT_ROOT / "tmp" / "driver_columns.txt"
+
+
+def _load_custom_driver_columns() -> List[str]:
+    """Load additional driver column aliases from tmp/driver_columns.txt (one per line)."""
+
+    try:
+        contents = CUSTOM_DRIVER_COLUMNS_FILE.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return []
+    except OSError:
+        return []
+
+    columns: List[str] = []
+    for line in contents.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        columns.append(stripped)
+    return columns
+
+
+def _detect_subcategory_columns(
+    df: pd.DataFrame,
+    requested: Optional[List[str]],
+    entity_col: str,
+    timestamp_col: str,
+    custom_aliases: Optional[List[str]] = None,
+    max_unique: int = MAX_AUTO_SUBCATEGORY_UNIQUE,
+) -> Tuple[List[str], bool]:
+    """Determine which columns to use for driver aggregation."""
+
+    exclude = {entity_col.lower(), timestamp_col.lower()}
+
+    if requested:
+        sanitized = [col for col in requested if col in df.columns]
+        if sanitized:
+            return sanitized, False
+        # fall through to auto-detect if provided columns missing
+
+    detected: List[str] = []
+    detected_lower: Set[str] = set()
+    lower_map = {col.lower(): col for col in df.columns if col.lower() not in exclude}
+
+    alias_candidates = list(DEFAULT_DRIVER_COLUMNS)
+    if custom_aliases:
+        alias_candidates.extend(custom_aliases)
+
+    for alias in alias_candidates:
+        match = lower_map.get(alias.lower())
+        if match and match.lower() not in detected_lower:
+            detected.append(match)
+            detected_lower.add(match.lower())
+
+    if not detected:
+        for col in df.columns:
+            col_lower = col.lower()
+            if col_lower in exclude or col_lower in detected_lower:
+                continue
+
+            series = df[col]
+            if pd.api.types.is_object_dtype(series) or pd.api.types.is_categorical_dtype(series):
+                unique_vals = series.nunique(dropna=True)
+                if 1 < unique_vals <= max_unique:
+                    detected.append(col)
+                    detected_lower.add(col_lower)
+            if len(detected) >= 2:
+                break
+
+    return detected, True
+
+
+def _get_quadrant_label(quadrant_code: str) -> str:
+    """Return human-readable label for a quadrant code."""
+    labels = {
+        "Q1": "Q1 (High Volume, High Growth)",
+        "Q2": "Q2 (Low Volume, High Growth)",
+        "Q3": "Q3 (Low Volume, Low Growth)",
+        "Q4": "Q4 (High Volume, Low Growth)",
+    }
+    return labels.get(quadrant_code, quadrant_code)
+
+
+def _get_risk_level(quadrant_code: str) -> str:
+    """Map quadrant code to supervisory risk level."""
+    risk_map = {
+        "Q1": "Critical",
+        "Q2": "Emerging",
+        "Q3": "Low Priority",
+        "Q4": "Persistent",
+    }
+    return risk_map.get(quadrant_code, "Unknown")
+
+
+def _classify_transition_concern(from_q: str, to_q: str) -> bool:
+    """Return True when transition represents increasing supervisory concern."""
+    if to_q in {"Q1", "Q2"}:
+        return True
+    risk_order = {"Q3": 1, "Q4": 2, "Q2": 3, "Q1": 4}
+    return risk_order.get(to_q, 0) > risk_order.get(from_q, 0)
 
 
 def _calculate_quarter_dates(quarter_str: str) -> Tuple[str, str]:
@@ -146,7 +262,8 @@ def extract_transition_drivers(
     entity_col: str = "entity",
     timestamp_col: str = "date",
     subcategory_cols: Optional[List[str]] = None,
-    text_col: Optional[str] = None,
+    top_n_subcategories: int = 3,
+    min_subcategory_delta: int = 1,
 ) -> Dict:
     """
     Extract key drivers of a quadrant transition.
@@ -163,16 +280,16 @@ def extract_transition_drivers(
         entity_col: Entity column name in df_raw
         timestamp_col: Timestamp column name in df_raw
         subcategory_cols: Optional list of subcategory columns to analyze
-        text_col: Optional text column for keyword analysis
+        subcategory_cols: Optional list of subcategory columns to analyze, automatically detected if omitted
 
     Returns:
         Dictionary with structure:
         {
             "transition": {...},           # Overview
             "magnitude": {...},            # Volume/growth changes
-            "subcategory_drivers": {...},  # Drivers by subcategory (if provided)
-            "keyword_drivers": [...],      # Text analysis (if provided)
-            "priority": {...}              # Priority classification
+            "subcategory_drivers": {...},  # Drivers by subcategory (if available)
+            "priority": {...},             # Priority classification
+            "meta": {...},                 # Diagnostic metadata
         }
 
     Examples:
@@ -211,6 +328,27 @@ def extract_transition_drivers(
     from_quadrant = from_row["period_quadrant"]
     to_quadrant = to_row["period_quadrant"]
 
+    # period-specific complaints (per quarter) for hybrid analysis
+    from_start, from_end = _calculate_quarter_dates(quarter_from)
+    to_start, to_end = _calculate_quarter_dates(quarter_to)
+
+    entity_complaints = df_raw[df_raw[entity_col] == entity_name]
+
+    from_period_data = entity_complaints[
+        (entity_complaints[timestamp_col] >= pd.Timestamp(from_start))
+        & (entity_complaints[timestamp_col] < pd.Timestamp(from_end))
+    ]
+
+    to_period_data = entity_complaints[
+        (entity_complaints[timestamp_col] >= pd.Timestamp(to_start))
+        & (entity_complaints[timestamp_col] < pd.Timestamp(to_end))
+    ]
+
+    from_period_count = len(from_period_data)
+    to_period_count = len(to_period_data)
+    period_increase = to_period_count - from_period_count
+    weeks_per_quarter = 13
+
     # transition overview
     transition_overview = {
         "entity": entity_name,
@@ -219,6 +357,10 @@ def extract_transition_drivers(
         "from_quadrant": from_quadrant,
         "to_quadrant": to_quadrant,
         "quadrant_changed": from_quadrant != to_quadrant,
+        "from_quadrant_label": _get_quadrant_label(from_quadrant),
+        "to_quadrant_label": _get_quadrant_label(to_quadrant),
+        "risk_level_change": f"{_get_risk_level(from_quadrant)} → {_get_risk_level(to_quadrant)}",
+        "is_concerning": _classify_transition_concern(from_quadrant, to_quadrant),
     }
 
     # magnitude metrics
@@ -254,6 +396,13 @@ def extract_transition_drivers(
             "y_from": round(from_row["period_y"], 2),
             "y_to": round(to_row["period_y"], 2),
             "y_delta": round(to_row["period_y"] - from_row["period_y"], 2),
+            "weekly_avg_from": round(from_period_count / weeks_per_quarter, 1),
+            "weekly_avg_to": round(to_period_count / weeks_per_quarter, 1),
+        },
+        "period_counts": {
+            "count_from": from_period_count,
+            "count_to": to_period_count,
+            "absolute_delta": period_increase,
         },
     }
 
@@ -280,88 +429,122 @@ def extract_transition_drivers(
         or abs(to_row["period_y"]) <= 0.1,
     }
 
+    # spike driver summary (ties to spike indicators / priority triggers)
+    spike_drivers = _summarize_spike_drivers(priority_classification, magnitude_metrics)
+
     # initialize result
     result = {
         "transition": transition_overview,
         "magnitude": magnitude_metrics,
         "priority": priority_classification,
+        "spike_drivers": spike_drivers,
     }
 
-    # subcategory drivers (optional)
-    if subcategory_cols:
+    custom_driver_aliases = _load_custom_driver_columns()
+    effective_subcats, auto_detected_subcats = _detect_subcategory_columns(
+        df_raw,
+        subcategory_cols,
+        entity_col,
+        timestamp_col,
+        custom_aliases=custom_driver_aliases,
+    )
+
+    if effective_subcats:
         result["subcategory_drivers"] = _analyze_subcategory_drivers(
-            df_raw,
-            entity_name,
-            entity_col,
-            timestamp_col,
-            quarter_from,
-            quarter_to,
-            subcategory_cols,
-            absolute_delta,
+            from_period_data,
+            to_period_data,
+            effective_subcats,
+            period_increase,
+            top_n=top_n_subcategories,
+            min_delta=min_subcategory_delta,
         )
 
-    # keyword drivers (optional)
-    if text_col:
-        result["keyword_drivers"] = _analyze_keyword_drivers(
-            df_raw,
-            entity_name,
-            entity_col,
-            timestamp_col,
-            quarter_from,
-            quarter_to,
-            text_col,
-        )
+    result["meta"] = {
+        "subcategory_columns_used": effective_subcats,
+        "subcategory_columns_auto_detected": auto_detected_subcats,
+        "custom_driver_columns_loaded": bool(custom_driver_aliases),
+    }
 
     return result
 
+def _summarize_spike_drivers(priority_info: Dict, magnitude: Dict) -> Dict:
+    """Create a compact summary describing what triggered spike flags."""
+
+    summary_notes: List[str] = []
+    spike_axis = priority_info.get("spike_axis")
+    volume = magnitude.get("volume_change", {})
+    growth = magnitude.get("growth_change", {})
+
+    y_delta = growth.get("y_delta")
+    x_delta = volume.get("x_delta")
+
+    if spike_axis in {"Y", "XY"} and y_delta is not None:
+        summary_notes.append(f"Y-axis spike (ΔY={y_delta:+.2f})")
+    if spike_axis in {"X", "XY"} and x_delta is not None:
+        summary_notes.append(f"X-axis spike (ΔX={x_delta:+.2f})")
+
+    percent_change = volume.get("percent_change", 0)
+    absolute_delta = volume.get("absolute_delta", 0)
+    if percent_change is not None and absolute_delta is not None:
+        if percent_change >= 200 and absolute_delta >= 20:
+            summary_notes.append(
+                f"Rapid complaint growth (+{absolute_delta:,} / {percent_change:+.0f}%)"
+            )
+
+    weekly_avg_to = growth.get("weekly_avg_to")
+    weekly_avg_from = growth.get("weekly_avg_from")
+    if weekly_avg_to is not None and weekly_avg_from is not None:
+        delta_weekly = weekly_avg_to - weekly_avg_from
+        if delta_weekly > 1:
+            summary_notes.append(
+                f"Weekly volume +{delta_weekly:.1f}/wk (from {weekly_avg_from:.1f} to {weekly_avg_to:.1f})"
+            )
+
+    if not summary_notes:
+        summary_notes.append(priority_info.get("trigger_reason", "No spike trigger"))
+
+    return {
+        "priority": priority_info.get("priority_name"),
+        "spike_axis": spike_axis,
+        "notes": summary_notes,
+    }
+
 
 def _analyze_subcategory_drivers(
-    df_raw: pd.DataFrame,
-    entity_name: str,
-    entity_col: str,
-    timestamp_col: str,
-    quarter_from: str,
-    quarter_to: str,
+    from_data: pd.DataFrame,
+    to_data: pd.DataFrame,
     subcategory_cols: List[str],
     period_increase: int,
+    top_n: int = 3,
+    min_delta: int = 1,
 ) -> Dict:
     """Analyze which subcategories drove the transition."""
-    from_start, from_end = _calculate_quarter_dates(quarter_from)
-    to_start, to_end = _calculate_quarter_dates(quarter_to)
-
-    # filter to entity and quarters
-    entity_data = df_raw[df_raw[entity_col] == entity_name]
-
-    from_data = entity_data[
-        (entity_data[timestamp_col] >= pd.Timestamp(from_start))
-        & (entity_data[timestamp_col] < pd.Timestamp(from_end))
-    ]
-
-    to_data = entity_data[
-        (entity_data[timestamp_col] >= pd.Timestamp(to_start))
-        & (entity_data[timestamp_col] < pd.Timestamp(to_end))
-    ]
-
     drivers_by_subcategory = {}
 
     for subcat_col in subcategory_cols:
-        if subcat_col not in df_raw.columns:
+        if subcat_col not in from_data.columns and subcat_col not in to_data.columns:
             continue
 
         # aggregate by subcategory
-        from_subcat = (
-            from_data.groupby(subcat_col)
-            .size()
-            .reset_index(name="count")
-            .sort_values("count", ascending=False)
-        )
+        if subcat_col in from_data.columns:
+            from_subcat = (
+                from_data.groupby(subcat_col)
+                .size()
+                .reset_index(name="count")
+                .sort_values("count", ascending=False)
+            )
+        else:
+            from_subcat = pd.DataFrame(columns=[subcat_col, "count"])
 
-        to_subcat = (
-            to_data.groupby(subcat_col)
-            .size()
-            .reset_index(name="count")
-            .sort_values("count", ascending=False)
-        )
+        if subcat_col in to_data.columns:
+            to_subcat = (
+                to_data.groupby(subcat_col)
+                .size()
+                .reset_index(name="count")
+                .sort_values("count", ascending=False)
+            )
+        else:
+            to_subcat = pd.DataFrame(columns=[subcat_col, "count"])
 
         # merge and calculate deltas
         comparison = pd.merge(
@@ -388,10 +571,9 @@ def _analyze_subcategory_drivers(
 
         comparison["driver_type"] = comparison.apply(classify_driver_type, axis=1)
 
-        # get top 3 by absolute delta
-        top_drivers = (
-            comparison[comparison["delta"] > 0].nlargest(3, "delta").to_dict("records")
-        )
+        min_threshold = max(1, min_delta)
+        filtered = comparison[comparison["delta"] >= min_threshold]
+        top_drivers = filtered.nlargest(top_n, "delta").to_dict("records")
 
         drivers_list = []
         for driver in top_drivers:
@@ -415,147 +597,18 @@ def _analyze_subcategory_drivers(
 
         drivers_by_subcategory[subcat_col] = {
             "top_drivers": drivers_list,
-            "top_3_explain_pct": round(top_explain_pct, 1),
+            "top_n_explain_pct": round(top_explain_pct, 1),
         }
 
     return drivers_by_subcategory
 
 
-def _analyze_keyword_drivers(
-    df_raw: pd.DataFrame,
-    entity_name: str,
-    entity_col: str,
-    timestamp_col: str,
-    quarter_from: str,
-    quarter_to: str,
-    text_col: str,
-    top_n: int = 10,
-) -> List[Dict]:
-    """Extract emerging keywords from text using bigram analysis."""
-    from_start, from_end = _calculate_quarter_dates(quarter_from)
-    to_start, to_end = _calculate_quarter_dates(quarter_to)
-
-    # filter to entity and quarters
-    entity_data = df_raw[df_raw[entity_col] == entity_name]
-
-    from_data = entity_data[
-        (entity_data[timestamp_col] >= pd.Timestamp(from_start))
-        & (entity_data[timestamp_col] < pd.Timestamp(from_end))
-    ]
-
-    to_data = entity_data[
-        (entity_data[timestamp_col] >= pd.Timestamp(to_start))
-        & (entity_data[timestamp_col] < pd.Timestamp(to_end))
-    ]
-
-    def extract_bigrams(text: str) -> List[str]:
-        """Extract meaningful bigrams from text."""
-        if not text or pd.isna(text):
-            return []
-
-        text = str(text).lower()
-        words = re.findall(r"\b\w+\b", text)
-
-        # basic stopwords (language-agnostic)
-        stopwords = {
-            "the",
-            "is",
-            "in",
-            "to",
-            "of",
-            "and",
-            "a",
-            "an",
-            "with",
-            "that",
-            "this",
-            "has",
-            "have",
-            "been",
-            "was",
-            "were",
-            "are",
-            "will",
-            "would",
-            "could",
-            "for",
-            "from",
-            "by",
-            "on",
-            "at",
-            "as",
-            "be",
-            "it",
-            "or",
-            "not",
-        }
-
-        # filter short words and stopwords
-        words = [w for w in words if len(w) > 2 and w not in stopwords]
-
-        # create bigrams
-        bigrams = [f"{words[i]} {words[i + 1]}" for i in range(len(words) - 1)]
-
-        # filter numeric-only bigrams
-        bigrams = [b for b in bigrams if not all(c.isdigit() or c == " " for c in b)]
-
-        return bigrams
-
-    # extract bigrams
-    from_text = from_data[text_col].tolist()
-    to_text = to_data[text_col].tolist()
-
-    from_bigrams = []
-    for text in from_text:
-        from_bigrams.extend(extract_bigrams(text))
-
-    to_bigrams = []
-    for text in to_text:
-        to_bigrams.extend(extract_bigrams(text))
-
-    # count frequency
-    from_counter = Counter(from_bigrams)
-    to_counter = Counter(to_bigrams)
-
-    # find bigrams that increased most
-    bigram_changes = {}
-    for bigram in set(list(from_counter.keys()) + list(to_counter.keys())):
-        from_count = from_counter.get(bigram, 0)
-        to_count = to_counter.get(bigram, 0)
-        delta = to_count - from_count
-        if delta > 0:
-            bigram_changes[bigram] = {
-                "from": from_count,
-                "to": to_count,
-                "delta": delta,
-            }
-
-    # get top N emerging bigrams
-    top_bigrams = sorted(
-        bigram_changes.items(), key=lambda x: x[1]["delta"], reverse=True
-    )[:top_n]
-
-    keyword_drivers = []
-    for bigram, stats in top_bigrams:
-        keyword_drivers.append(
-            {
-                "bigram": bigram,
-                "frequency_from": stats["from"],
-                "frequency_to": stats["to"],
-                "delta": stats["delta"],
-            }
-        )
-
-    return keyword_drivers
-
-
-def display_transition_drivers(analysis: Dict, show_keywords: bool = False) -> None:
+def display_transition_drivers(analysis: Dict) -> None:
     """
     Print transition driver analysis in human-readable format.
 
     Args:
         analysis: Output from extract_transition_drivers()
-        show_keywords: Whether to show keyword analysis
 
     Examples:
         >>> display_transition_drivers(analysis)
@@ -573,7 +626,9 @@ def display_transition_drivers(analysis: Dict, show_keywords: bool = False) -> N
     print()
     print(f"Entity: {trans['entity']}")
     print(f"Period: {trans['from_quarter']} -> {trans['to_quarter']}")
-    print(f"Quadrant: {trans['from_quadrant']} -> {trans['to_quadrant']}")
+    print(f"Quadrant: {trans.get('from_quadrant_label', trans['from_quadrant'])} -> {trans.get('to_quadrant_label', trans['to_quadrant'])}")
+    if trans.get("risk_level_change"):
+        print(f"Risk level: {trans['risk_level_change']}")
 
     if trans["quadrant_changed"]:
         print("Status: Quadrant transition detected")
@@ -586,6 +641,11 @@ def display_transition_drivers(analysis: Dict, show_keywords: bool = False) -> N
     print(f"Reason: {priority['trigger_reason']}")
     if priority.get("spike_axis"):
         print(f"Spike axis: {priority['spike_axis']}")
+    if analysis.get("spike_drivers"):
+        spike = analysis["spike_drivers"]
+        print("Spike summary:")
+        for note in spike.get("notes", []):
+            print(f"  - {note}")
 
     # magnitude
     print()
@@ -600,12 +660,24 @@ def display_transition_drivers(analysis: Dict, show_keywords: bool = False) -> N
     print(
         f"  Y-axis: {growth['y_from']:.2f} -> {growth['y_to']:.2f} (delta {growth['y_delta']:+.2f})"
     )
+    if "weekly_avg_from" in growth:
+        print(
+            f"  Weekly avg: {growth['weekly_avg_from']:.1f} -> {growth['weekly_avg_to']:.1f}"
+        )
+
+    if "period_counts" in mag:
+        period_counts = mag["period_counts"]
+        print(
+            "  Period complaints: "
+            f"{period_counts['count_from']} -> {period_counts['count_to']} "
+            f"(delta {period_counts['absolute_delta']:+})"
+        )
 
     # subcategory drivers
     if "subcategory_drivers" in analysis:
         for subcat_col, drivers_data in analysis["subcategory_drivers"].items():
             top_drivers = drivers_data["top_drivers"]
-            explain_pct = drivers_data["top_3_explain_pct"]
+            explain_pct = drivers_data.get("top_n_explain_pct", drivers_data.get("top_3_explain_pct", 0.0))
 
             if top_drivers:
                 print()
@@ -619,16 +691,5 @@ def display_transition_drivers(analysis: Dict, show_keywords: bool = False) -> N
                         f"(delta {driver['delta']:+,}, {driver['percent_of_change']:.1f}%)"
                     )
                     print(f"     Type: {driver['driver_type']}")
-
-    # keyword drivers
-    if show_keywords and "keyword_drivers" in analysis:
-        keywords = analysis["keyword_drivers"]
-        if keywords:
-            print()
-            print("Top emerging keywords:")
-            for i, kw in enumerate(keywords[:5], 1):
-                print(
-                    f"  {i}. '{kw['bigram']}' ({kw['frequency_from']} -> {kw['frequency_to']}, delta +{kw['delta']})"
-                )
 
     print()

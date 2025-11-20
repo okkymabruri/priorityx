@@ -88,7 +88,6 @@ def test_extract_transition_drivers_basic():
         quarter_to="2024-Q3",
         entity_col="service",
         timestamp_col="date",
-        subcategory_cols=["type"],
     )
 
     # verify structure
@@ -102,11 +101,14 @@ def test_extract_transition_drivers_basic():
     assert analysis["transition"]["from_quadrant"] == "Q3"
     assert analysis["transition"]["to_quadrant"] == "Q2"
     assert analysis["transition"]["quadrant_changed"] is True
+    assert "risk_level_change" in analysis["transition"]
 
     # verify magnitude
     assert analysis["magnitude"]["volume_change"]["count_from"] == 50
     assert analysis["magnitude"]["volume_change"]["count_to"] == 80
     assert analysis["magnitude"]["volume_change"]["absolute_delta"] == 30
+    assert "weekly_avg_from" in analysis["magnitude"]["growth_change"]
+    assert "period_counts" in analysis["magnitude"]
 
     # verify priority classification exists
     assert analysis["priority"]["priority"] in [1, 2, 3, 4]
@@ -116,3 +118,126 @@ def test_extract_transition_drivers_basic():
         "Monitor",
         "Low",
     ]
+    assert "spike_drivers" in analysis
+
+    meta = analysis["meta"]
+    assert meta["subcategory_columns_auto_detected"] is True
+    assert meta["subcategory_columns_used"] == ["type"]
+    assert meta["custom_driver_columns_loaded"] is False
+
+
+def test_extract_transition_drivers_manual_subcategory_controls():
+    """Ensure manual subcategory selection and knobs behave as expected."""
+
+    movement_data = pd.DataFrame(
+        {
+            "entity": ["Service B", "Service B"],
+            "quarter": ["2024-Q2", "2024-Q3"],
+            "period_quadrant": ["Q3", "Q2"],
+            "period_x": [-0.3, -0.05],
+            "period_y": [-0.2, 0.3],
+            "complaints_to_date": [40, 90],
+        }
+    )
+
+    df_raw = pd.DataFrame(
+        {
+            "service": [
+                "Service B",
+                "Service B",
+                "Service B",
+                "Service B",
+                "Service B",
+                "Service B",
+            ],
+            "date": pd.to_datetime(
+                [
+                    "2024-01-15",
+                    "2024-02-20",
+                    "2024-04-10",
+                    "2024-04-15",
+                    "2024-05-01",
+                    "2024-05-10",
+                ]
+            ),
+            "issue_type": [
+                "billing",
+                "billing",
+                "support",
+                "support",
+                "support",
+                "support",
+            ],
+        }
+    )
+
+    analysis = extract_transition_drivers(
+        movement_df=movement_data,
+        df_raw=df_raw,
+        entity_name="Service B",
+        quarter_from="2024-Q2",
+        quarter_to="2024-Q3",
+        entity_col="service",
+        timestamp_col="date",
+        subcategory_cols=["issue_type"],
+        top_n_subcategories=1,
+        min_subcategory_delta=2,
+    )
+
+    sub_drivers = analysis["subcategory_drivers"]["issue_type"]["top_drivers"]
+    assert len(sub_drivers) == 1
+    assert sub_drivers[0]["name"] == "support"
+    assert sub_drivers[0]["delta"] >= 2
+
+    meta = analysis["meta"]
+    assert meta["subcategory_columns_auto_detected"] is False
+    assert meta["subcategory_columns_used"] == ["issue_type"]
+    assert meta["custom_driver_columns_loaded"] is False
+
+
+def test_extract_transition_drivers_fallback_detection():
+    """Auto-detects reasonable subcategory columns when none provided."""
+
+    movement_data = pd.DataFrame(
+        {
+            "entity": ["Service C", "Service C"],
+            "quarter": ["2024-Q1", "2024-Q2"],
+            "period_quadrant": ["Q4", "Q2"],
+            "period_x": [-0.4, 0.1],
+            "period_y": [-0.2, 0.3],
+            "complaints_to_date": [30, 65],
+        }
+    )
+
+    df_raw = pd.DataFrame(
+        {
+            "service": ["Service C"] * 8,
+            "date": pd.date_range(start="2023-10-01", periods=8, freq="15D"),
+            "module": [
+                "core",
+                "core",
+                "api",
+                "api",
+                "api",
+                "billing",
+                "billing",
+                "billing",
+            ],
+        }
+    )
+
+    analysis = extract_transition_drivers(
+        movement_df=movement_data,
+        df_raw=df_raw,
+        entity_name="Service C",
+        quarter_from="2024-Q1",
+        quarter_to="2024-Q2",
+        entity_col="service",
+        timestamp_col="date",
+    )
+
+    meta = analysis["meta"]
+    assert meta["subcategory_columns_auto_detected"] is True
+    assert meta["subcategory_columns_used"] == ["module"]
+    assert meta["custom_driver_columns_loaded"] is False
+    assert "module" in analysis["subcategory_drivers"]

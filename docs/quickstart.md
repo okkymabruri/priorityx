@@ -62,9 +62,14 @@ if not transitions.empty:
         quarter_from=first_transition["from_quarter"],
         quarter_to=first_transition["transition_quarter"],
         entity_col="service",
-        timestamp_col="date"
+        timestamp_col="date",
+        top_n_subcategories=5,
+        min_subcategory_delta=2
     )
     display_transition_drivers(analysis)
+
+    # subcategory columns (e.g., severity/product/topic) are auto-detected
+    # when not provided; pass subcategory_cols=[...] to override.
 ```
 
 ## Data Requirements

@@ -1,4 +1,4 @@
-import os
+# %%
 import random
 from datetime import datetime, timedelta
 
@@ -12,6 +12,7 @@ from priorityx.viz.timeline import plot_transition_timeline
 from priorityx.utils.helpers import (
     display_quadrant_summary,
     display_transition_summary,
+    save_dataframe_to_csv,
 )
 
 random.seed(42)
@@ -63,11 +64,6 @@ df = pd.DataFrame(data)
 temporal_granularity = "quarterly"
 entity_name = "Department"
 
-PLOT_DIR = "examples/violations/plot"
-RESULTS_DIR = "examples/violations/results"
-os.makedirs(PLOT_DIR, exist_ok=True)
-os.makedirs(RESULTS_DIR, exist_ok=True)
-
 results, stats = fit_priority_matrix(
     df,
     entity_col="department",
@@ -86,7 +82,6 @@ plot_priority_matrix(
     show_quadrant_labels=True,
     save_plot=True,
     save_csv=True,
-    output_dir=PLOT_DIR,
 )
 
 movement, meta = track_cumulative_movement(
@@ -98,17 +93,12 @@ movement, meta = track_cumulative_movement(
     temporal_granularity=temporal_granularity,
 )
 
-timestamp = datetime.now().strftime("%Y%m%d")
-granularity_suffix = {
-    "quarterly": "Q",
-    "yearly": "Y",
-    "semiannual": "S",
-}.get(temporal_granularity, "Q")
-movement_path = (
-    f"{RESULTS_DIR}/trajectories-{entity_name.lower()}-"
-    f"{granularity_suffix}-{timestamp}.csv"
+movement_path = save_dataframe_to_csv(
+    movement,
+    artifact="trajectories",
+    entity_name=entity_name,
+    temporal_granularity=temporal_granularity,
 )
-movement.to_csv(movement_path, index=False)
 print(f"Movement CSV saved: {movement_path}")
 transitions = extract_transitions(movement, focus_risk_increasing=True)
 
@@ -120,9 +110,10 @@ plot_transition_timeline(
     entity_name=entity_name,
     save_plot=True,
     save_csv=True,
-    output_dir=PLOT_DIR,
     movement_df=movement,
 )
 
 print()
-print("Outputs saved to examples/violations/plot/ and examples/violations/results/")
+print("Outputs saved to plot/ and results/ in the current working directory.")
+
+# %%

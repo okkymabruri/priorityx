@@ -1,13 +1,9 @@
-# it incident monitoring example
-
-from pathlib import Path
-from io import StringIO
+# %%
+# it incident monitoring example (data pulled from GitHub raw)
 
 import pandas as pd
-import requests
 
 RAW_DATA_URL = "https://raw.githubusercontent.com/okkymabruri/priorityx/main/examples/incidents/incidents.csv"
-LOCAL_DATA_PATH = Path(__file__).parent / "incidents.csv"
 
 from priorityx.core.glmm import fit_priority_matrix
 from priorityx.tracking.movement import track_cumulative_movement
@@ -25,16 +21,9 @@ from priorityx.utils.helpers import (
     save_dataframe_to_csv,
 )
 
-# load data (prefer hosted CSV so the example works out-of-the-box)
-try:
-    response = requests.get(RAW_DATA_URL, timeout=10)
-    response.raise_for_status()
-    df = pd.read_csv(StringIO(response.text))
-    print("Loaded incidents from GitHub raw URL")
-except Exception:
-    print("Falling back to local incidents.csv")
-    df = pd.read_csv(LOCAL_DATA_PATH)
-df["date"] = pd.to_datetime(df["date"])
+# load data from GitHub raw
+df = pd.read_csv(RAW_DATA_URL, parse_dates=["date"])
+print("Loaded incidents from GitHub raw URL")
 
 print(f"Loaded {len(df)} incidents for {df['service'].nunique()} services")
 print(f"Date range: {df['date'].min()} to {df['date'].max()}")
@@ -66,7 +55,6 @@ plot_priority_matrix(
     show_quadrant_labels=True,
     save_plot=True,
     save_csv=True,
-    output_dir="examples/incidents/plot",
 )
 
 # track movement
@@ -92,7 +80,6 @@ movement_path = save_dataframe_to_csv(
     artifact="trajectories",
     entity_name=entity_name,
     temporal_granularity=temporal_granularity,
-    output_dir="examples/incidents/results",
 )
 print(f"Movement CSV saved: {movement_path}")
 
@@ -103,8 +90,6 @@ plot_entity_trajectories(
     max_entities=5,
     save_plot=True,
     save_csv=True,
-    output_dir="examples/incidents/plot",
-    results_dir="examples/incidents/results",
 )
 
 # detect transitions
@@ -118,7 +103,6 @@ plot_transition_timeline(
     entity_name=entity_name,
     save_plot=True,
     save_csv=True,
-    output_dir="examples/incidents/plot",
     movement_df=movement,
 )
 
@@ -160,8 +144,6 @@ if len(critical_transitions) > 0:
         display_transition_drivers(driver_analysis)
 
 print()
-print(
-    "Analysis complete. Check examples/incidents/plot/ and examples/incidents/results/"
-)
+print("Analysis complete. Check plot/ and results/ in the current working directory.")
 
 # %%

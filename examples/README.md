@@ -16,18 +16,17 @@ pip install git+https://github.com/okkymabruri/priorityx.git
 
 ## Running Examples
 
-**IT Incidents** (1,621 incidents, 10 services)
+**IT Incidents** (1,621 incidents, 10 services) — pulls CSV from GitHub raw
 ```bash
 python examples/incidents/incident_monitoring.py
 ```
 
-**Compliance Violations** (495 violations, 10 departments)
+**Compliance Violations** (495 violations, 10 departments) — synthetic dataset
 ```bash
 python examples/violations/violations_monitoring.py
 ```
 
-**Software Bugs** (576 bugs, 10 components)
-Pre-generated CSV only. Use as input for your own analysis.
+**Software Bugs** (576 bugs, 10 components) — pulls CSV from GitHub raw
 
 ## Output
 

@@ -14,10 +14,10 @@ def plot_entity_trajectories(
     max_entities: int = 10,
     figsize: Tuple[int, int] = (16, 12),
     title: Optional[str] = None,
-    save_plot: bool = True,
+    save_plot: bool = False,
     save_csv: bool = False,
-    output_dir: str = "plot",
-    results_dir: Optional[str] = None,
+    plot_dir: str = "results/plot",
+    csv_dir: Optional[str] = "results/csv",
     temporal_granularity: str = "quarterly",
 ) -> plt.Figure:
     """
@@ -35,8 +35,10 @@ def plot_entity_trajectories(
         max_entities: Maximum entities to show (default: 10)
         figsize: Figure size (width, height)
         title: Optional custom title
-        save_plot: Save plot to file
-        output_dir: Output directory for saved files
+        save_plot: Save plot to file (default: False)
+        save_csv: Save trajectories to CSV (default: False)
+        plot_dir: Output directory for plot files
+        csv_dir: Output directory for CSV files
         temporal_granularity: Time granularity for file naming
 
     Returns:
@@ -264,19 +266,19 @@ def plot_entity_trajectories(
         import os
         from datetime import datetime
 
-        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(plot_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d")
         granularity_suffix = {
             "quarterly": "Q",
             "yearly": "Y",
             "semiannual": "S",
         }.get(temporal_granularity, "Q")
-        plot_path = f"{output_dir}/trajectories-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
+        plot_path = f"{plot_dir}/trajectories-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
         plt.savefig(plot_path, dpi=300, bbox_inches="tight", format="png")
         print(f"Entity trajectory plot saved: {plot_path}")
 
     if save_csv:
-        target_dir = results_dir if results_dir else f"{output_dir}/../results"
+        target_dir = csv_dir if csv_dir else f"{plot_dir}/../results"
         csv_path = save_dataframe_to_csv(
             movement_df,
             artifact="trajectories",

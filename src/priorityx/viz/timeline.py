@@ -22,7 +22,8 @@ def plot_transition_timeline(
     show_all_periods: bool = False,
     save_plot: bool = False,
     save_csv: bool = False,
-    output_dir: str = "plot",
+    plot_dir: str = "results/plot",
+    csv_dir: str = "results/csv",
     temporal_granularity: str = "quarterly",
     movement_df: Optional[pd.DataFrame] = None,
 ) -> plt.Figure:
@@ -48,7 +49,8 @@ def plot_transition_timeline(
         show_all_periods: Include starting period even if no transitions
         save_plot: Save plot to file
         save_csv: Save data to CSV
-        output_dir: Output directory for saved files
+        plot_dir: Output directory for plot files
+        csv_dir: Output directory for CSV files
         temporal_granularity: Time granularity for file naming
         movement_df: Optional movement DataFrame for priority calculation
 
@@ -368,14 +370,14 @@ def plot_transition_timeline(
         import os
         from datetime import datetime
 
-        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(plot_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d")
         granularity_suffix = {
             "quarterly": "Q",
             "yearly": "Y",
             "semiannual": "S",
         }.get(temporal_granularity, "Q")
-        plot_path = f"{output_dir}/transition_timeline-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
+        plot_path = f"{plot_dir}/transition_timeline-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
         plt.savefig(plot_path, dpi=300, bbox_inches="tight", format="png")
         print(f"Transition plot saved: {plot_path}")
 
@@ -384,14 +386,14 @@ def plot_transition_timeline(
         import os
         from datetime import datetime
 
-        os.makedirs(f"{output_dir}/../results", exist_ok=True)
+        os.makedirs(csv_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d")
         granularity_suffix = {
             "quarterly": "Q",
             "yearly": "Y",
             "semiannual": "S",
         }.get(temporal_granularity, "Q")
-        csv_path = f"{output_dir}/../results/transitions-{entity_name.lower()}-{granularity_suffix}-{timestamp}.csv"
+        csv_path = f"{csv_dir}/transitions-{entity_name.lower()}-{granularity_suffix}-{timestamp}.csv"
         df.to_csv(csv_path, index=False)
         print(f"Transitions CSV saved: {csv_path}")
 

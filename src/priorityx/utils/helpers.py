@@ -239,7 +239,7 @@ def generate_output_path(
     artifact: str,
     entity_name: str,
     temporal_granularity: str = "quarterly",
-    output_dir: str = "results",
+    output_dir: str = "results/csv",
     extension: str = "csv",
 ) -> str:
     """Generate a standardized output path for saved artifacts.
@@ -248,7 +248,7 @@ def generate_output_path(
         artifact: Artifact name prefix (e.g., "priority_matrix", "movement")
         entity_name: Friendly entity label (e.g., "Service")
         temporal_granularity: Granularity key for suffix (default: "quarterly")
-        output_dir: Directory where file should be saved
+        output_dir: Directory where file should be saved (default: "results/csv")
         extension: File extension (default: "csv")
 
     Returns:
@@ -274,7 +274,7 @@ def save_dataframe_to_csv(
     artifact: str,
     entity_name: str,
     temporal_granularity: str = "quarterly",
-    output_dir: str = "results",
+    output_dir: str = "results/csv",
 ) -> str:
     """Save a DataFrame using the standardized naming convention.
 

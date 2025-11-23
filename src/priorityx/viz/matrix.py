@@ -30,7 +30,8 @@ def plot_priority_matrix(
     skip_label_min_count: int = 0,
     save_plot: bool = False,
     save_csv: bool = False,
-    output_dir: str = "plot",
+    plot_dir: str = "results/plot",
+    csv_dir: str = "results/csv",
     temporal_granularity: str = "quarterly",
 ) -> plt.Figure:
     """
@@ -53,7 +54,8 @@ def plot_priority_matrix(
         skip_label_min_count: Skip labeling entities with count < threshold
         save_plot: Save plot to file
         save_csv: Save data to CSV
-        output_dir: Output directory for saved files
+        plot_dir: Output directory for plot files
+        csv_dir: Output directory for CSV files
         temporal_granularity: Time granularity ('quarterly', 'yearly', 'semiannual')
 
     Returns:
@@ -298,14 +300,14 @@ def plot_priority_matrix(
         import os
         from datetime import datetime
 
-        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(plot_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d")
         granularity_suffix = {
             "quarterly": "Q",
             "yearly": "Y",
             "semiannual": "S",
         }.get(temporal_granularity, "Q")
-        save_path = f"{output_dir}/priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
+        save_path = f"{plot_dir}/priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
 
         plt.savefig(save_path, dpi=300, bbox_inches="tight", format="png")
         print(f"Plot saved: {save_path}")
@@ -315,14 +317,14 @@ def plot_priority_matrix(
         import os
         from datetime import datetime
 
-        os.makedirs(f"{output_dir}/../results", exist_ok=True)
+        os.makedirs(csv_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d")
         granularity_suffix = {
             "quarterly": "Q",
             "yearly": "Y",
             "semiannual": "S",
         }.get(temporal_granularity, "Q")
-        csv_path = f"{output_dir}/../results/priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.csv"
+        csv_path = f"{csv_dir}/priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.csv"
 
         # save key columns
         cols_to_save = [

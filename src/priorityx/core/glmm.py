@@ -3,6 +3,7 @@
 from typing import Dict, Literal, Optional, Tuple
 from datetime import timedelta
 import os
+import warnings
 import numpy as np
 
 import pandas as pd
@@ -71,6 +72,7 @@ def fit_priority_matrix(
     temporal_granularity: Literal["yearly", "quarterly", "semiannual"] = "yearly",
     vcp_p: float = DEFAULT_VCP_P,
     fe_p: float = DEFAULT_FE_P,
+    verbose: bool = False,
 ) -> Tuple[pd.DataFrame, Dict]:
     """
     Fit Poisson GLMM to classify entities into priority quadrants.
@@ -87,12 +89,18 @@ def fit_priority_matrix(
         temporal_granularity: Time aggregation level
         vcp_p: Random effects prior scale
         fe_p: Fixed effects prior scale
+        verbose: When True, print diagnostic logs; otherwise stay quiet
 
     Returns:
         Tuple of (results DataFrame, statistics dict)
     """
     # create copy to avoid modifying original
     df = df.copy()
+
+    if not verbose:
+        warnings.filterwarnings(
+            "ignore", message="VB fitting did not converge", category=UserWarning
+        )
 
     # ensure timestamp column is datetime
     df[timestamp_col] = pd.to_datetime(df[timestamp_col])
@@ -129,7 +137,7 @@ def fit_priority_matrix(
         df = df[df[entity_col].isin(valid_entities)]
         n_after_volume_filter = df[entity_col].nunique()
         n_filtered_volume = n_before_volume_filter - n_after_volume_filter
-        if n_filtered_volume > 0:
+        if verbose and n_filtered_volume > 0:
             print(
                 f"  Filtered {n_filtered_volume} entities (<{min_total_count} total count)"
             )
@@ -308,22 +316,14 @@ def fit_priority_matrix(
         fe_p=fe_p,
     )
 
-    # DIAGNOSTIC LOGGING
-    print(f"\n[GLMM DEBUG] Formula: {formula}")
-    print(f"[GLMM DEBUG] N observations: {len(df_prepared)}")
-    print(f"[GLMM DEBUG] N entities: {df_prepared[entity_col].nunique()}")
-    print(f"[GLMM DEBUG] Year range: {df_prepared['year'].min()}-{df_prepared['year'].max()}")
-    print(f"[GLMM DEBUG] Time variable: mean={df_prepared['time'].mean():.6f}, std={df_prepared['time'].std():.6f}")
-    print(f"[GLMM DEBUG] Entity sample: {df_prepared[entity_col].unique()[:5].tolist()}")
-    print(f"[GLMM DEBUG] vcp_p={vcp_p}, fe_p={fe_p}")
-    
-    # Print first entity's data
-    first_entity = df_prepared[entity_col].iloc[0]
-    entity_data = df_prepared[df_prepared[entity_col] == first_entity]
-    print(f"\n[GLMM DEBUG] First entity '{first_entity}' data:")
-    debug_cols = [c for c in ["year", "quarter", "semester", entity_col, "count", "time"] if c in entity_data.columns]
-    print(entity_data[debug_cols].head(10).to_string())
-
+    if verbose:
+        print(f"\n[GLMM DEBUG] Formula: {formula}")
+        print(f"[GLMM DEBUG] N observations: {len(df_prepared)}")
+        print(f"[GLMM DEBUG] N entities: {df_prepared[entity_col].nunique()}")
+        print(f"[GLMM DEBUG] Year range: {df_prepared['year'].min()}-{df_prepared['year'].max()}")
+        print(f"[GLMM DEBUG] Time variable: mean={df_prepared['time'].mean():.6f}, std={df_prepared['time'].std():.6f}")
+        print(f"[GLMM DEBUG] Entity sample: {df_prepared[entity_col].unique()[:5].tolist()}")
+        print(f"[GLMM DEBUG] vcp_p={vcp_p}, fe_p={fe_p}")
     # use variational bayes (returns posterior mean)
     # avoids boundary convergence issues vs map
     _apply_random_seed()

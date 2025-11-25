@@ -1,6 +1,6 @@
 """Transition detection from movement tracking data."""
 
-from typing import Tuple
+from typing import Iterable, Tuple
 
 import pandas as pd
 
@@ -210,6 +210,33 @@ def extract_transitions(
                     )
 
     return pd.DataFrame(transitions)
+
+
+def filter_transitions(
+    df: pd.DataFrame,
+    *,
+    window: Iterable[str],
+    exclude_quadrant_prefixes: Iterable[str] = ("Q4",),
+) -> pd.DataFrame:
+    """Filter transitions to a time window and drop moves involving excluded quadrants."""
+    if df.empty:
+        return df
+
+    df = df.copy()
+    df["transition_quarter"] = df["transition_quarter"].astype(str)
+    df["from_quadrant"] = df["from_quadrant"].astype(str)
+    df["to_quadrant"] = df["to_quadrant"].astype(str)
+
+    filtered = df[df["transition_quarter"].isin(window)].copy()
+
+    if exclude_quadrant_prefixes:
+        mask = False
+        for prefix in exclude_quadrant_prefixes:
+            mask |= filtered["from_quadrant"].str.startswith(prefix)
+            mask |= filtered["to_quadrant"].str.startswith(prefix)
+        filtered = filtered[~mask]
+
+    return filtered.reset_index(drop=True)
 
 
 def classify_priority(

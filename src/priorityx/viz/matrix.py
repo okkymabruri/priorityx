@@ -1,6 +1,7 @@
 """Priority matrix scatter plot visualization."""
 
 from typing import List, Optional, Tuple
+import warnings
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -15,6 +16,13 @@ try:
 except ImportError:
     ADJUSTTEXT_AVAILABLE = False
     print("Warning: adjustText not available. Labels may overlap.")
+
+# suppress noisy FancyArrowPatch fallback warnings from adjustText/annotate
+warnings.filterwarnings(
+    "ignore",
+    message=".*FancyArrowPatch.*",
+    category=UserWarning,
+)
 
 
 def plot_priority_matrix(
@@ -33,6 +41,7 @@ def plot_priority_matrix(
     plot_dir: str = "results/plot",
     csv_dir: str = "results/csv",
     temporal_granularity: str = "quarterly",
+    close_fig: bool = False,
 ) -> plt.Figure:
     """
     Visualize priority matrix as scatter plot.
@@ -57,6 +66,7 @@ def plot_priority_matrix(
         plot_dir: Output directory for plot files
         csv_dir: Output directory for CSV files
         temporal_granularity: Time granularity ('quarterly', 'yearly', 'semiannual')
+        close_fig: Close the figure before returning (set True if you see duplicate inline renders)
 
     Returns:
         Matplotlib figure
@@ -337,4 +347,7 @@ def plot_priority_matrix(
         df[[c for c in cols_to_save if c in df.columns]].to_csv(csv_path, index=False)
         print(f"CSV saved: {csv_path}")
 
-    return plt.gcf()
+    fig = plt.gcf()
+    if close_fig:
+        plt.close(fig)
+    return fig

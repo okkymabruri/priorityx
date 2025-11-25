@@ -1,11 +1,19 @@
 """Transition timeline heatmap visualization."""
 
 from typing import List, Literal, Optional, Tuple
+import warnings
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
 from priorityx.tracking.transitions import classify_priority
+
+# suppress noisy FancyArrowPatch fallback warnings from annotate/adjustments
+warnings.filterwarnings(
+    "ignore",
+    message=".*FancyArrowPatch.*",
+    category=UserWarning,
+)
 
 
 def plot_transition_timeline(
@@ -26,6 +34,7 @@ def plot_transition_timeline(
     csv_dir: str = "results/csv",
     temporal_granularity: str = "quarterly",
     movement_df: Optional[pd.DataFrame] = None,
+    close_fig: bool = False,
 ) -> plt.Figure:
     """
     Visualize transition timeline as heatmap.
@@ -53,6 +62,7 @@ def plot_transition_timeline(
         csv_dir: Output directory for CSV files
         temporal_granularity: Time granularity for file naming
         movement_df: Optional movement DataFrame for priority calculation
+        close_fig: Close the figure before returning (set True if you see duplicate inline renders)
 
     Returns:
         Matplotlib figure
@@ -396,5 +406,8 @@ def plot_transition_timeline(
         csv_path = f"{csv_dir}/transitions-{entity_name.lower()}-{granularity_suffix}-{timestamp}.csv"
         df.to_csv(csv_path, index=False)
         print(f"Transitions CSV saved: {csv_path}")
+
+    if close_fig:
+        plt.close(fig)
 
     return fig

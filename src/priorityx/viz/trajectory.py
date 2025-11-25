@@ -1,11 +1,19 @@
 """Entity movement trajectory plots."""
 
 from typing import List, Optional, Tuple
+import warnings
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
 from priorityx.utils.helpers import save_dataframe_to_csv
+
+# suppress noisy FancyArrowPatch fallback warnings from annotate/adjustments
+warnings.filterwarnings(
+    "ignore",
+    message=".*FancyArrowPatch.*",
+    category=UserWarning,
+)
 
 def plot_entity_trajectories(
     movement_df: pd.DataFrame,
@@ -19,6 +27,7 @@ def plot_entity_trajectories(
     plot_dir: str = "results/plot",
     csv_dir: Optional[str] = "results/csv",
     temporal_granularity: str = "quarterly",
+    close_fig: bool = False,
 ) -> plt.Figure:
     """
     Visualize entity trajectories through priority space.
@@ -40,6 +49,7 @@ def plot_entity_trajectories(
         plot_dir: Output directory for plot files
         csv_dir: Output directory for CSV files
         temporal_granularity: Time granularity for file naming
+        close_fig: Close the figure before returning (set True if you see duplicate inline renders)
 
     Returns:
         Matplotlib figure
@@ -216,8 +226,8 @@ def plot_entity_trajectories(
 
     # set labels
     axis_fontsize = 15
-    ax.set_xlabel("X-axis: Volume (Random Intercept)", fontsize=axis_fontsize)
-    ax.set_ylabel("Y-axis: Growth Rate (Random Slope)", fontsize=axis_fontsize)
+    ax.set_xlabel(f"{entity_name} Volume (Relative)", fontsize=axis_fontsize)
+    ax.set_ylabel(f"{entity_name} Growth Rate (Relative)", fontsize=axis_fontsize)
 
     if title:
         ax.set_title(title, fontsize=17, fontweight="bold", pad=20)
@@ -253,8 +263,8 @@ def plot_entity_trajectories(
     ax.spines['left'].set_visible(False)
     
     # keep quadrant dividers but make them more subtle
-    ax.axhline(0, color="lightgray", linestyle="-", alpha=0.4, linewidth=0.8, zorder=0)
-    ax.axvline(0, color="lightgray", linestyle="-", alpha=0.4, linewidth=0.8, zorder=0)
+    ax.axhline(0, color="grey", linestyle="--", alpha=0.7, linewidth=1, zorder=0)
+    ax.axvline(0, color="grey", linestyle="--", alpha=0.7, linewidth=1, zorder=0)
 
     tick_fontsize = 15
     ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
@@ -287,5 +297,8 @@ def plot_entity_trajectories(
             output_dir=target_dir,
         )
         print(f"Trajectories CSV saved: {csv_path}")
+
+    if close_fig:
+        plt.close(fig)
 
     return fig

@@ -15,6 +15,7 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
+
 def plot_entity_trajectories(
     movement_df: pd.DataFrame,
     entity_name: str = "Entity",
@@ -68,6 +69,25 @@ def plot_entity_trajectories(
     if movement_df.empty:
         print("No movement data to visualize")
         return None
+
+    # trim trajectories after last quarter with new complaints
+    if "volume_delta" in movement_df.columns:
+        df_trim = movement_df.copy()
+        active = df_trim[df_trim["volume_delta"].fillna(0) > 0]
+        if not active.empty:
+            last_active = active.groupby("entity")["quarter"].max()
+            df_trim = df_trim.merge(
+                last_active.rename("last_active_quarter"),
+                on="entity",
+                how="left",
+            )
+            # keep only entities that ever had positive volume_delta
+            # and cut them at their last active quarter
+            df_trim = df_trim[
+                df_trim["last_active_quarter"].notna()
+                & (df_trim["quarter"] <= df_trim["last_active_quarter"])
+            ]
+            movement_df = df_trim
 
     # select entities to plot
     if highlight_entities:
@@ -129,11 +149,11 @@ def plot_entity_trajectories(
 
         # get color from global quadrant
         global_quad = entity_data.iloc[0]["global_quadrant"]
-        
+
         # find alternative color if already used
         base_color = colors.get(global_quad, "#95a5a6")
         color = base_color
-        
+
         used_colors[base_color] = used_colors.get(base_color, 0) + 1
         if used_colors[base_color] > 1:
             # generate darker shade for same quadrant (better contrast)
@@ -243,7 +263,13 @@ def plot_entity_trajectories(
     from matplotlib.lines import Line2D
 
     quadrant_legend = [
-        Line2D([0], [0], color=colors[quadrant], linewidth=3, label=quadrant_display[quadrant])
+        Line2D(
+            [0],
+            [0],
+            color=colors[quadrant],
+            linewidth=3,
+            label=quadrant_display[quadrant],
+        )
         for quadrant in ["Q1", "Q2", "Q3", "Q4"]
     ]
     legend_fontsize = 15
@@ -257,11 +283,11 @@ def plot_entity_trajectories(
     )
 
     # remove plot borders for cleaner look
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['bottom'].set_visible(False)
-    ax.spines['left'].set_visible(False)
-    
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["bottom"].set_visible(False)
+    ax.spines["left"].set_visible(False)
+
     # keep quadrant dividers but make them more subtle
     ax.axhline(0, color="grey", linestyle="--", alpha=0.7, linewidth=1, zorder=0)
     ax.axvline(0, color="grey", linestyle="--", alpha=0.7, linewidth=1, zorder=0)

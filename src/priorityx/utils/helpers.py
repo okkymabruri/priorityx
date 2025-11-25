@@ -2,6 +2,7 @@
 
 import os
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 
@@ -298,3 +299,21 @@ def save_dataframe_to_csv(
     )
     df.to_csv(output_path, index=False)
     return output_path
+
+
+def latest_artifact_csv(
+    artifact: str,
+    entity_name: str,
+    output_dir: str = "results/csv",
+) -> str | None:
+    """Find the latest CSV for a given artifact/entity pair.
+
+    Assumes filenames follow ``generate_output_path`` convention:
+    ``<output_dir>/<artifact>-<entity_slug>-<granularity>-<YYYYMMDD>.csv``.
+    """
+
+    slug = entity_name.lower().replace(" ", "_")
+    directory = Path(output_dir)
+    pattern = f"{artifact}-{slug}-*.csv"
+    matches = sorted(directory.glob(pattern))
+    return str(matches[-1]) if matches else None

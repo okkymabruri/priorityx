@@ -82,7 +82,9 @@ def _detect_subcategory_columns(
                 continue
 
             series = df[col]
-            if pd.api.types.is_object_dtype(series) or pd.api.types.is_categorical_dtype(series):
+            if pd.api.types.is_object_dtype(
+                series
+            ) or pd.api.types.is_categorical_dtype(series):
                 unique_vals = series.nunique(dropna=True)
                 if 1 < unique_vals <= max_unique:
                     detected.append(col)
@@ -262,8 +264,8 @@ def extract_transition_drivers(
     entity_col: str = "entity",
     timestamp_col: str = "date",
     subcategory_cols: Optional[List[str]] = None,
-    top_n_subcategories: int = 3,
-    min_subcategory_delta: int = 1,
+    top_n_subcategories: int = 5,
+    min_subcategory_delta: int = 2,
 ) -> Dict:
     """
     Extract key drivers of a quadrant transition.
@@ -467,6 +469,7 @@ def extract_transition_drivers(
 
     return result
 
+
 def _summarize_spike_drivers(priority_info: Dict, magnitude: Dict) -> Dict:
     """Create a compact summary describing what triggered spike flags."""
 
@@ -604,92 +607,69 @@ def _analyze_subcategory_drivers(
 
 
 def display_transition_drivers(analysis: Dict) -> None:
-    """
-    Print transition driver analysis in human-readable format.
+    """Print a concise, diagnoser-style summary of transition drivers."""
 
-    Args:
-        analysis: Output from extract_transition_drivers()
-
-    Examples:
-        >>> display_transition_drivers(analysis)
-    """
     trans = analysis["transition"]
     mag = analysis["magnitude"]
     vol = mag["volume_change"]
     growth = mag["growth_change"]
     priority = analysis["priority"]
+    spike = analysis.get("spike_drivers", {})
+    subcats = analysis.get("subcategory_drivers", {})
 
     print()
     print("TRANSITION DRIVER ANALYSIS")
 
-    # transition overview
-    print()
-    print(f"Entity: {trans['entity']}")
-    print(f"Period: {trans['from_quarter']} -> {trans['to_quarter']}")
-    print(f"Quadrant: {trans.get('from_quadrant_label', trans['from_quadrant'])} -> {trans.get('to_quadrant_label', trans['to_quadrant'])}")
+    # headline
+    print(
+        f"[P{priority['priority']}] {trans['entity']}: "
+        f"{trans['from_quarter']} -> {trans['to_quarter']} "
+        f"({trans.get('from_quadrant', '')} -> {trans.get('to_quadrant', '')})"
+    )
     if trans.get("risk_level_change"):
-        print(f"Risk level: {trans['risk_level_change']}")
+        print(f"  Risk: {trans['risk_level_change']}")
 
-    if trans["quadrant_changed"]:
-        print("Status: Quadrant transition detected")
-    else:
-        print("Status: Within-quadrant movement")
-
-    # priority
-    print()
-    print(f"Priority: P{priority['priority']} ({priority['priority_name']})")
-    print(f"Reason: {priority['trigger_reason']}")
-    if priority.get("spike_axis"):
-        print(f"Spike axis: {priority['spike_axis']}")
-    if analysis.get("spike_drivers"):
-        spike = analysis["spike_drivers"]
-        print("Spike summary:")
-        for note in spike.get("notes", []):
-            print(f"  - {note}")
-
-    # magnitude
-    print()
-    print("Magnitude:")
+    # core metrics
     print(
-        f"  Volume: {vol['count_from']:,} -> {vol['count_to']:,} "
-        f"(delta {vol['absolute_delta']:+,}, {vol['percent_change']:+.1f}%)"
+        "  Volume: "
+        f"{vol['count_from']:,} -> {vol['count_to']:,} "
+        f"(Δ {vol['absolute_delta']:+,}, {vol['percent_change']:+.1f}%)"
     )
     print(
-        f"  X-axis: {vol['x_from']:.2f} -> {vol['x_to']:.2f} (delta {vol['x_delta']:+.2f})"
+        "  X/Y:    "
+        f"X {vol['x_from']:.2f} -> {vol['x_to']:.2f} (Δ {vol['x_delta']:+.2f}), "
+        f"Y {growth['y_from']:.2f} -> {growth['y_to']:.2f} (Δ {growth['y_delta']:+.2f})"
     )
-    print(
-        f"  Y-axis: {growth['y_from']:.2f} -> {growth['y_to']:.2f} (delta {growth['y_delta']:+.2f})"
-    )
-    if "weekly_avg_from" in growth:
-        print(
-            f"  Weekly avg: {growth['weekly_avg_from']:.1f} -> {growth['weekly_avg_to']:.1f}"
-        )
-
     if "period_counts" in mag:
-        period_counts = mag["period_counts"]
+        pc = mag["period_counts"]
         print(
-            "  Period complaints: "
-            f"{period_counts['count_from']} -> {period_counts['count_to']} "
-            f"(delta {period_counts['absolute_delta']:+})"
+            "  Period: "
+            f"{pc['count_from']} -> {pc['count_to']} "
+            f"(Δ {pc['absolute_delta']:+})"
         )
 
-    # subcategory drivers
-    if "subcategory_drivers" in analysis:
-        for subcat_col, drivers_data in analysis["subcategory_drivers"].items():
-            top_drivers = drivers_data["top_drivers"]
-            explain_pct = drivers_data.get("top_n_explain_pct", drivers_data.get("top_3_explain_pct", 0.0))
+    # priority + spike summary
+    print(f"  Priority: P{priority['priority']} ({priority['priority_name']})")
+    print(f"  Trigger:  {priority['trigger_reason']}")
 
-            if top_drivers:
-                print()
-                print(
-                    f"Top drivers by {subcat_col} (explain {explain_pct:.1f}% of change):"
-                )
-                for i, driver in enumerate(top_drivers, 1):
-                    print(f"  {i}. {driver['name']}")
-                    print(
-                        f"     {driver['count_from']:,} -> {driver['count_to']:,} "
-                        f"(delta {driver['delta']:+,}, {driver['percent_of_change']:.1f}%)"
-                    )
-                    print(f"     Type: {driver['driver_type']}")
+    for note in spike.get("notes", []):
+        print(f"  · {note}")
 
-    print()
+    # subcategory drivers (if available)
+    for subcat_col, drivers_data in subcats.items():
+        top_drivers = drivers_data.get("top_drivers", [])
+        explain_pct = drivers_data.get(
+            "top_n_explain_pct", drivers_data.get("top_3_explain_pct", 0.0)
+        )
+        if not top_drivers:
+            continue
+
+        print(f"  Drivers by {subcat_col} (explain {explain_pct:.1f}% of change):")
+        for d in top_drivers:
+            print(
+                f"    - {d['name']}: "
+                f"{d['count_from']:,} -> {d['count_to']:,} "
+                f"(Δ {d['delta']:+,}, {d['percent_of_change']:.1f}%, {d['driver_type']})"
+            )
+
+    print()  # trailing newline for readability

@@ -5,6 +5,8 @@ from typing import Optional, Sequence, Union
 
 import pandas as pd
 
+from priorityx.utils.helpers import latest_artifact_csv, save_dataframe_to_csv
+
 
 def _is_quarter_start(ts: pd.Timestamp) -> bool:
     """Check if timestamp is the first day of a calendar quarter."""
@@ -472,3 +474,49 @@ def track_cumulative_movement(
     }
 
     return movement_df, metadata
+
+
+def load_or_track_movement(
+    df_raw: pd.DataFrame,
+    *,
+    entity_name: str,
+    entity_col: str,
+    timestamp_col: str,
+    quarters,
+    min_total_count: int,
+    temporal_granularity: str = "quarterly",
+    output_dir: str = "results/csv",
+    use_cache: bool = True,
+) -> tuple[pd.DataFrame, str | None]:
+    """Load latest movement CSV for entity or compute and save.
+
+    When ``use_cache`` is True, tries to load the most recent
+    ``movement-<entity_slug>-*.csv`` from ``output_dir``. If not
+    found, runs tracking and saves a fresh movement CSV.
+    """
+
+    csv_path: str | None = None
+    if use_cache:
+        csv_path = latest_artifact_csv("movement", entity_name, output_dir)
+        if csv_path:
+            movement_df = pd.read_csv(csv_path)
+            return movement_df, csv_path
+
+    movement_df, _meta = track_cumulative_movement(
+        df_raw,
+        entity_col=entity_col,
+        timestamp_col=timestamp_col,
+        quarters=quarters,
+        min_total_count=min_total_count,
+        temporal_granularity=temporal_granularity,
+    )
+
+    csv_path = save_dataframe_to_csv(
+        movement_df,
+        artifact="movement",
+        entity_name=entity_name,
+        temporal_granularity=temporal_granularity,
+        output_dir=output_dir,
+    )
+
+    return movement_df, csv_path

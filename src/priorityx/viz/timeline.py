@@ -222,32 +222,35 @@ def plot_transition_timeline(
                 if len(prev_quarter_data) > 0:
                     prev_row = prev_quarter_data.iloc[-1]
 
-                    # get count column (handle both naming conventions)
-                    count_col = (
-                        "complaints_to_date"
-                        if "complaints_to_date" in row.index
-                        else "count_to_date"
-                    )
+                    # use cumulative_count for movement magnitude when available
+                    if (
+                        "cumulative_count" in row.index
+                        and "cumulative_count" in prev_row.index
+                    ):
+                        count_col = "cumulative_count"
 
-                    complaints_delta = int(row[count_col] - prev_row[count_col])
-                    percent_change = (
-                        (row[count_col] - prev_row[count_col])
-                        / prev_row[count_col]
-                        * 100
-                        if prev_row[count_col] > 0
-                        else 0
-                    )
+                        complaints_delta = int(row[count_col] - prev_row[count_col])
+                        percent_change = (
+                            (row[count_col] - prev_row[count_col])
+                            / prev_row[count_col]
+                            * 100
+                            if prev_row[count_col] > 0
+                            else 0
+                        )
 
-                    priority, _, spike_axis = classify_priority(
-                        from_quadrant=transition["from_quadrant"],
-                        to_quadrant=transition["to_quadrant"],
-                        x=row["period_x"],
-                        y=row["period_y"],
-                        x_delta=row["period_x"] - prev_row["period_x"],
-                        y_delta=row["period_y"] - prev_row["period_y"],
-                        complaints_delta=complaints_delta,
-                        percent_change=percent_change,
-                    )
+                        priority, _, spike_axis = classify_priority(
+                            from_quadrant=transition["from_quadrant"],
+                            to_quadrant=transition["to_quadrant"],
+                            x=row["period_x"],
+                            y=row["period_y"],
+                            x_delta=row["period_x"] - prev_row["period_x"],
+                            y_delta=row["period_y"] - prev_row["period_y"],
+                            complaints_delta=complaints_delta,
+                            percent_change=percent_change,
+                        )
+                    else:
+                        priority = 2
+                        spike_axis = None
                 else:
                     priority = 2  # default to "investigate"
             else:

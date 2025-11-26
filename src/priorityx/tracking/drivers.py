@@ -366,10 +366,8 @@ def extract_transition_drivers(
     }
 
     # magnitude metrics
-    if "complaints_to_date" in from_row.index:
-        count_col_name = "complaints_to_date"
-    elif "count_to_date" in from_row.index:
-        count_col_name = "count_to_date"
+    if "cumulative_count" in from_row.index:
+        count_col_name = "cumulative_count"
     else:
         count_col_name = None
 
@@ -456,7 +454,7 @@ def extract_transition_drivers(
             from_period_data,
             to_period_data,
             effective_subcats,
-            period_increase,
+            absolute_delta,
             top_n=top_n_subcategories,
             min_delta=min_subcategory_delta,
         )
@@ -517,7 +515,7 @@ def _analyze_subcategory_drivers(
     from_data: pd.DataFrame,
     to_data: pd.DataFrame,
     subcategory_cols: List[str],
-    period_increase: int,
+    absolute_delta: int,
     top_n: int = 3,
     min_delta: int = 1,
 ) -> Dict:
@@ -559,9 +557,10 @@ def _analyze_subcategory_drivers(
         ).fillna(0)
 
         comparison["delta"] = comparison["count_to"] - comparison["count_from"]
-        comparison["percent_of_change"] = (
-            (comparison["delta"] / period_increase * 100) if period_increase > 0 else 0
-        )
+        if absolute_delta > 0:
+            comparison["percent_of_change"] = comparison["delta"] / absolute_delta * 100
+        else:
+            comparison["percent_of_change"] = 0.0
 
         # classify driver type
         def classify_driver_type(row):
@@ -591,12 +590,13 @@ def _analyze_subcategory_drivers(
                 }
             )
 
-        # calculate explanation power
-        top_explain_pct = (
-            sum([d["delta"] for d in drivers_list]) / period_increase * 100
-            if period_increase > 0
-            else 0
-        )
+        # calculate explanation power (share of cumulative volume delta)
+        if absolute_delta > 0:
+            top_explain_pct = (
+                sum(d["delta"] for d in drivers_list) / absolute_delta * 100
+            )
+        else:
+            top_explain_pct = 0.0
 
         drivers_by_subcategory[subcat_col] = {
             "top_drivers": drivers_list,
@@ -631,7 +631,7 @@ def display_transition_drivers(analysis: Dict) -> None:
 
     # core metrics
     print(
-        "  Volume: "
+        "  Cumulative volume (all time): "
         f"{vol['count_from']:,} -> {vol['count_to']:,} "
         f"(Δ {vol['absolute_delta']:+,}, {vol['percent_change']:+.1f}%)"
     )
@@ -643,7 +643,7 @@ def display_transition_drivers(analysis: Dict) -> None:
     if "period_counts" in mag:
         pc = mag["period_counts"]
         print(
-            "  Period: "
+            "  Period volume (quarter): "
             f"{pc['count_from']} -> {pc['count_to']} "
             f"(Δ {pc['absolute_delta']:+})"
         )

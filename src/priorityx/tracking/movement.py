@@ -218,8 +218,9 @@ def track_cumulative_movement(
     Returns:
         Tuple of (movement_df, metadata_dict)
         - movement_df: Quarter-by-quarter tracking with columns:
-          [entity, quarter, count_to_date, period_x, period_y, period_quadrant,
-           global_quadrant, global_x, global_y, count_total, x_delta, y_delta, volume_delta]
+          [entity, quarter, period_count, cumulative_count, period_x, period_y,
+           period_quadrant, global_quadrant, global_x, global_y,
+           count_total, x_delta, y_delta, quadrant_differs]
         - metadata_dict: Tracking statistics and configuration
 
     Examples:
@@ -247,7 +248,8 @@ def track_cumulative_movement(
             columns=[
                 "entity",
                 "quarter",
-                "count_to_date",
+                "period_count",
+                "cumulative_count",
                 "period_x",
                 "period_y",
                 "period_quadrant",
@@ -255,8 +257,12 @@ def track_cumulative_movement(
                 "global_x",
                 "global_y",
                 "count_total",
+                "x_delta",
+                "y_delta",
+                "quadrant_differs",
             ]
         )
+
         metadata = {
             "entities_tracked": 0,
             "quarters_analyzed": 0,
@@ -397,7 +403,7 @@ def track_cumulative_movement(
                         {
                             "entity": entity,
                             "quarter": quarter_name,
-                            "count_to_date": row["count"],
+                            "cumulative_count": row["count"],
                             "period_x": row["Random_Intercept"],
                             "period_y": row["Random_Slope"],
                             "period_quadrant": row["quadrant"],
@@ -421,7 +427,8 @@ def track_cumulative_movement(
             columns=[
                 "entity",
                 "quarter",
-                "count_to_date",
+                "period_count",
+                "cumulative_count",
                 "period_x",
                 "period_y",
                 "period_quadrant",
@@ -431,7 +438,7 @@ def track_cumulative_movement(
                 "count_total",
                 "x_delta",
                 "y_delta",
-                "volume_delta",
+                "quadrant_differs",
             ]
         )
 
@@ -444,12 +451,39 @@ def track_cumulative_movement(
     # calculate deltas
     movement_df["x_delta"] = movement_df.groupby("entity")["period_x"].diff()
     movement_df["y_delta"] = movement_df.groupby("entity")["period_y"].diff()
-    movement_df["volume_delta"] = movement_df.groupby("entity")["count_to_date"].diff()
+
+    # new event count per period
+    movement_df["period_count"] = movement_df.groupby("entity")[
+        "cumulative_count"
+    ].diff()
 
     # detect quadrant divergence
     movement_df["quadrant_differs"] = (
         movement_df["period_quadrant"] != movement_df["global_quadrant"]
     )
+
+    # reorder columns for readability
+    cols = [
+        "entity",
+        "quarter",
+        "period_count",
+        "cumulative_count",
+        "period_x",
+        "period_y",
+        "period_quadrant",
+        "global_quadrant",
+        "global_x",
+        "global_y",
+        "count_total",
+        "x_delta",
+        "y_delta",
+        "quadrant_differs",
+    ]
+    # keep any extra columns at the end
+    movement_df = movement_df[
+        [c for c in cols if c in movement_df.columns]
+        + [c for c in movement_df.columns if c not in cols]
+    ]
 
     print(f"Tracked {len(movement_df)} entity-quarter observations")
     print(f"Entities tracked: {movement_df['entity'].nunique()}")

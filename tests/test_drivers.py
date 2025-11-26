@@ -63,7 +63,7 @@ def test_extract_transition_drivers_basic():
             "period_quadrant": ["Q3", "Q2"],
             "period_x": [-0.2, -0.1],
             "period_y": [-0.1, 0.2],
-            "count_to_date": [50, 80],
+            "cumulative_count": [50, 80],
         }
     )
 
@@ -136,7 +136,7 @@ def test_extract_transition_drivers_manual_subcategory_controls():
             "period_quadrant": ["Q3", "Q2"],
             "period_x": [-0.3, -0.05],
             "period_y": [-0.2, 0.3],
-            "complaints_to_date": [40, 90],
+            "cumulative_count": [40, 90],
         }
     )
 
@@ -205,7 +205,7 @@ def test_extract_transition_drivers_fallback_detection():
             "period_quadrant": ["Q4", "Q2"],
             "period_x": [-0.4, 0.1],
             "period_y": [-0.2, 0.3],
-            "complaints_to_date": [30, 65],
+            "cumulative_count": [30, 65],
         }
     )
 

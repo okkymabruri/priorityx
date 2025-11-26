@@ -70,10 +70,10 @@ def plot_entity_trajectories(
         print("No movement data to visualize")
         return None
 
-    # trim trajectories after last quarter with new complaints
-    if "volume_delta" in movement_df.columns:
+    # trim trajectories after last quarter with new events
+    if "period_count" in movement_df.columns:
         df_trim = movement_df.copy()
-        active = df_trim[df_trim["volume_delta"].fillna(0) > 0]
+        active = df_trim[df_trim["period_count"].fillna(0) > 0]
         if not active.empty:
             last_active = active.groupby("entity")["quarter"].max()
             df_trim = df_trim.merge(
@@ -81,7 +81,7 @@ def plot_entity_trajectories(
                 on="entity",
                 how="left",
             )
-            # keep only entities that ever had positive volume_delta
+            # keep only entities that ever had positive period_count
             # and cut them at their last active quarter
             df_trim = df_trim[
                 df_trim["last_active_quarter"].notna()

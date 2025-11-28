@@ -307,15 +307,19 @@ def plot_entity_trajectories(
             "quarterly": "Q",
             "yearly": "Y",
             "semiannual": "S",
+            "monthly": "M",
         }.get(temporal_granularity, "Q")
         plot_path = f"{plot_dir}/trajectories-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
         plt.savefig(plot_path, dpi=300, bbox_inches="tight", format="png")
         print(f"Entity trajectory plot saved: {plot_path}")
 
     if save_csv:
+        # Only save the trajectories actually plotted (df_plot), not the
+        # full movement_df. The full movement data remains available in
+        # the movement CSVs.
         target_dir = csv_dir if csv_dir else f"{plot_dir}/../results"
         csv_path = save_dataframe_to_csv(
-            movement_df,
+            df_plot,
             artifact="trajectories",
             entity_name=entity_name,
             temporal_granularity=temporal_granularity,

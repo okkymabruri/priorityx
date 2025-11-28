@@ -67,7 +67,7 @@ def plot_priority_matrix(
         save_csv: Save data to CSV
         plot_dir: Output directory for plot files
         csv_dir: Output directory for CSV files
-        temporal_granularity: Time granularity ('quarterly', 'yearly', 'semiannual')
+        temporal_granularity: Time granularity ('quarterly', 'yearly', 'semiannual', 'monthly')
         close_fig: Close the figure before returning (set True if you see duplicate inline renders)
 
     Returns:
@@ -316,6 +316,7 @@ def plot_priority_matrix(
             "quarterly": "Q",
             "yearly": "Y",
             "semiannual": "S",
+            "monthly": "M",
         }.get(temporal_granularity, "Q")
         save_path = f"{plot_dir}/priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
 
@@ -333,6 +334,7 @@ def plot_priority_matrix(
             "quarterly": "Q",
             "yearly": "Y",
             "semiannual": "S",
+            "monthly": "M",
         }.get(temporal_granularity, "Q")
         csv_path = f"{csv_dir}/priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.csv"
 

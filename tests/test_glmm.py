@@ -67,6 +67,23 @@ def test_fit_priority_matrix_stats():
     assert stats["temporal_granularity"] == "quarterly"
 
 
+def test_fit_priority_matrix_monthly_basic():
+    """Monthly granularity should run and report correct stats flag."""
+
+    df = generate_test_data()
+
+    results, stats = fit_priority_matrix(
+        df,
+        entity_col="entity",
+        timestamp_col="date",
+        temporal_granularity="monthly",
+        min_observations=3,
+    )
+
+    assert len(results) > 0
+    assert stats["temporal_granularity"] == "monthly"
+
+
 def test_fit_priority_matrix_seed_control():
     """Verify explicit seeding produces deterministic random effects."""
 

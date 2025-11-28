@@ -24,7 +24,7 @@ def plot_transition_timeline(
     max_entities: Optional[int] = 20,
     figsize: Tuple[int, int] = (16, 12),
     title: Optional[str] = None,
-    x_axis_granularity: Literal["quarterly", "semiannual", "yearly"] = "quarterly",
+    x_axis_granularity: Literal["quarterly", "semiannual", "yearly", "monthly"] = "quarterly",
     sort_by_risk_first: bool = True,
     entity_name: str = "Entity",
     show_all_periods: bool = False,
@@ -106,7 +106,7 @@ def plot_transition_timeline(
     risk_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
     df["risk_order"] = df["risk_level"].map(risk_order)
 
-    # aggregate quarters based on granularity
+    # aggregate periods based on granularity
     if x_axis_granularity == "semiannual":
 
         def quarter_to_semester(q_str):
@@ -125,6 +125,9 @@ def plot_transition_timeline(
             return q_str
 
         df["period"] = df["transition_quarter"].apply(quarter_to_year)
+    elif x_axis_granularity == "monthly":
+        # use transition_quarter as-is (assumed monthly label like YYYY-MM)
+        df["period"] = df["transition_quarter"]
     else:  # quarterly
         df["period"] = df["transition_quarter"]
 
@@ -267,9 +270,14 @@ def plot_transition_timeline(
         ax.scatter(x_pos, y_pos, s=100, c=color, alpha=0.8, zorder=2)
 
         # add transition label with spike indicator
-        label = f"{transition['from_quadrant']}→{transition['to_quadrant']}"
+        to_quad = str(transition["to_quadrant"])
+        label = f"{transition['from_quadrant']}→{to_quad}"
 
-        if spike_axis:
+        # avoid duplicating spike markers when to_quadrant already
+        # contains *X / *Y / *XY
+        has_inline_spike = "*" in to_quad
+
+        if spike_axis and not has_inline_spike:
             # add superscript indicator
             if spike_axis == "Y":
                 label += "*$^Y$"
@@ -313,7 +321,9 @@ def plot_transition_timeline(
                 period_labels.append(f"H{semester} {year}")
             else:
                 period_labels.append(p)
-    else:  # yearly
+    elif x_axis_granularity == "yearly":
+        period_labels = periods
+    else:  # monthly
         period_labels = periods
 
     ax.set_xticks(range(len(periods)))
@@ -365,7 +375,12 @@ def plot_transition_timeline(
         )
 
     # set labels
-    xlabel_map = {"quarterly": "Quarter", "semiannual": "Semester", "yearly": "Year"}
+    xlabel_map = {
+        "quarterly": "Quarter",
+        "semiannual": "Semester",
+        "yearly": "Year",
+        "monthly": "Month",
+    }
     axis_fontsize = 15
     ax.set_xlabel(xlabel_map.get(x_axis_granularity, "Period"), fontsize=axis_fontsize)
     ax.set_ylabel(entity_name, fontsize=axis_fontsize)
@@ -389,6 +404,7 @@ def plot_transition_timeline(
             "quarterly": "Q",
             "yearly": "Y",
             "semiannual": "S",
+            "monthly": "M",
         }.get(temporal_granularity, "Q")
         plot_path = f"{plot_dir}/transition_timeline-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
         plt.savefig(plot_path, dpi=300, bbox_inches="tight", format="png")
@@ -405,9 +421,20 @@ def plot_transition_timeline(
             "quarterly": "Q",
             "yearly": "Y",
             "semiannual": "S",
+            "monthly": "M",
         }.get(temporal_granularity, "Q")
         csv_path = f"{csv_dir}/transitions-{entity_name.lower()}-{granularity_suffix}-{timestamp}.csv"
-        df.to_csv(csv_path, index=False)
+
+        df_to_save = df
+        # For monthly outputs, expose a clearer ``transition_month`` label
+        # in the CSV while keeping the internal transition_quarter column
+        # for code that relies on it.
+        if temporal_granularity == "monthly" and "transition_quarter" in df.columns:
+            df_to_save = df.copy().rename(
+                columns={"transition_quarter": "transition_month"}
+            )
+
+        df_to_save.to_csv(csv_path, index=False)
         print(f"Transitions CSV saved: {csv_path}")
 
     if close_fig:

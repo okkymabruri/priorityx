@@ -3,8 +3,6 @@
 
 import pandas as pd
 
-RAW_DATA_URL = "https://raw.githubusercontent.com/okkymabruri/priorityx/main/examples/incidents/incidents.csv"
-
 from priorityx.core.glmm import fit_priority_matrix
 from priorityx.tracking.movement import track_cumulative_movement
 from priorityx.tracking.transitions import extract_transitions
@@ -20,6 +18,8 @@ from priorityx.utils.helpers import (
     display_transition_summary,
     save_dataframe_to_csv,
 )
+
+RAW_DATA_URL = "https://raw.githubusercontent.com/okkymabruri/priorityx/main/examples/incidents/incidents.csv"
 
 # load data from GitHub raw
 df = pd.read_csv(RAW_DATA_URL, parse_dates=["date"])

@@ -44,11 +44,32 @@ def _quarter_label(ts: pd.Timestamp) -> str:
     return f"{ts.year}-Q{quarter}"
 
 
+def _is_month_start(ts: pd.Timestamp) -> bool:
+    """Check if timestamp is the first day of a calendar month."""
+
+    return ts.day == 1
+
+
+def _next_month_start(ts: pd.Timestamp) -> pd.Timestamp:
+    """Get timestamp for the first day of the next calendar month."""
+
+    year = ts.year
+    month = ts.month
+    if month == 12:
+        return pd.Timestamp(year=year + 1, month=1, day=1)
+    return pd.Timestamp(year=year, month=month + 1, day=1)
+
+
+def _month_label(ts: pd.Timestamp) -> str:
+    """Format timestamp into 'YYYY-MM' label."""
+
+    return ts.strftime("%Y-%m")
+
+
 def _build_quarter_schedule_from_range(
     start_date: str, end_date: str
 ) -> list[tuple[str, str]]:
-    """
-    Build quarter schedule from date range.
+    """Build quarter schedule from date range.
 
     Args:
         start_date: Start date (YYYY-MM-DD), must be quarter boundary
@@ -80,6 +101,44 @@ def _build_quarter_schedule_from_range(
             next_start = end_ts
 
         schedule.append((_quarter_label(current), next_start.strftime("%Y-%m-%d")))
+        current = next_start
+
+    return schedule
+
+
+def _build_month_schedule_from_range(
+    start_date: str, end_date: str
+) -> list[tuple[str, str]]:
+    """Build month schedule from date range.
+
+    Args:
+        start_date: Start date (YYYY-MM-DD), must be month boundary (day=1)
+        end_date: End date (YYYY-MM-DD), must be month boundary (day=1)
+
+    Returns:
+        List of (label, exclusive_end_date) tuples
+
+    Raises:
+        ValueError: If dates are not month boundaries or invalid
+    """
+
+    start_ts = pd.Timestamp(start_date)
+    end_ts = pd.Timestamp(end_date)
+
+    if start_ts >= end_ts:
+        raise ValueError("Start date must be earlier than end date")
+
+    if not _is_month_start(start_ts) or not _is_month_start(end_ts):
+        raise ValueError("Dates must be month boundaries (YYYY-MM-01)")
+
+    schedule: list[tuple[str, str]] = []
+    current = start_ts
+    while current < end_ts:
+        next_start = _next_month_start(current)
+        if next_start > end_ts:
+            next_start = end_ts
+
+        schedule.append((_month_label(current), next_start.strftime("%Y-%m-%d")))
         current = next_start
 
     return schedule
@@ -120,67 +179,116 @@ def _build_default_quarter_schedule(
     )
 
 
-def normalize_quarter_schedule(
+def _build_default_month_schedule(
+    df: pd.DataFrame, timestamp_col: str
+) -> list[tuple[str, str]]:
+    """Create default month schedule spanning the dataset."""
+
+    if timestamp_col not in df.columns or len(df) == 0:
+        return []
+
+    df = df.copy()
+    df[timestamp_col] = pd.to_datetime(df[timestamp_col])
+
+    min_date = df[timestamp_col].min()
+    max_date = df[timestamp_col].max()
+
+    if pd.isna(min_date) or pd.isna(max_date):
+        return []
+
+    start_ts = min_date.to_period("M").to_timestamp(how="start")
+    max_month_start = max_date.to_period("M").to_timestamp(how="start")
+    end_ts = _next_month_start(max_month_start)
+
+    return _build_month_schedule_from_range(
+        start_ts.strftime("%Y-%m-%d"), end_ts.strftime("%Y-%m-%d")
+    )
+
+
+def normalize_period_schedule(
     quarters: Optional[Sequence[Union[tuple[str, str], str]]],
     df: pd.DataFrame,
     timestamp_col: str,
+    temporal_granularity: str = "quarterly",
 ) -> list[tuple[str, str]]:
-    """
-    Normalize quarter schedule to standard format.
+    """Normalize period schedule to standard (label, cutoff_date) format.
 
-    Accepts three input formats:
+    For quarterly granularity:
     1. Explicit schedule: [("2024-Q2", "2024-07-01"), ...]
-    2. Date range: ["2024-01-01", "2025-10-01"] (auto-generates quarters)
+    2. Date range: ["2024-01-01", "2025-10-01"]
     3. None: Auto-detect from data
 
-    Args:
-        quarters: Quarter specification (see formats above)
-        df: Input pandas DataFrame
-        timestamp_col: Column name for timestamp
-
-    Returns:
-        List of (quarter_label, exclusive_end_date) tuples
-
-    Examples:
-        >>> # explicit schedule
-        >>> normalize_quarter_schedule(
-        ...     [("2024-Q1", "2024-04-01"), ("2024-Q2", "2024-07-01")],
-        ...     df, "date"
-        ... )
-
-        >>> # date range (auto-generates quarters)
-        >>> normalize_quarter_schedule(
-        ...     ["2024-01-01", "2025-01-01"], df, "date"
-        ... )
-
-        >>> # auto-detect from data
-        >>> normalize_quarter_schedule(None, df, "date")
+    For monthly granularity, the same patterns apply but labels are
+    "YYYY-MM" and dates must be month boundaries.
     """
+
+    if temporal_granularity == "monthly":
+        if quarters is None:
+            return _build_default_month_schedule(df, timestamp_col)
+
+        if len(quarters) == 0:
+            return []
+
+        # date range format: ["2024-01-01", "2025-10-01"]
+        if len(quarters) == 2 and all(isinstance(q, str) for q in quarters):
+            return _build_month_schedule_from_range(quarters[0], quarters[1])
+
+        normalized_schedule: list[tuple[str, str]] = []
+        for entry in quarters:
+            if not isinstance(entry, tuple) or len(entry) != 2:
+                raise ValueError(
+                    "quarters must be a list of (label, cutoff_date) tuples "
+                    "or two date boundary strings",
+                )
+            label, cutoff = entry
+            normalized_schedule.append((label, cutoff))
+
+        return normalized_schedule
+
+    # default: quarterly schedule
     if quarters is None:
         return _build_default_quarter_schedule(df, timestamp_col)
 
     if len(quarters) == 0:
         return []
 
-    # check first element type
-    quarters[0]
-
     # date range format: ["2024-01-01", "2025-10-01"]
     if len(quarters) == 2 and all(isinstance(q, str) for q in quarters):
         return _build_quarter_schedule_from_range(quarters[0], quarters[1])
 
     # explicit schedule format: [("2024-Q2", "2024-07-01"), ...]
-    normalized_schedule: list[tuple[str, str]] = []
+    normalized_schedule2: list[tuple[str, str]] = []
     for entry in quarters:
         if not isinstance(entry, tuple) or len(entry) != 2:
             raise ValueError(
                 "quarters must be a list of (label, cutoff_date) tuples "
-                "or two quarter boundary strings"
+                "or two quarter boundary strings",
             )
         label, cutoff = entry
-        normalized_schedule.append((label, cutoff))
+        normalized_schedule2.append((label, cutoff))
 
-    return normalized_schedule
+    return normalized_schedule2
+
+
+def normalize_quarter_schedule(
+    quarters: Optional[Sequence[Union[tuple[str, str], str]]],
+    df: pd.DataFrame,
+    timestamp_col: str,
+    temporal_granularity: str = "quarterly",
+) -> list[tuple[str, str]]:
+    """Backward-compatible alias for :func:`normalize_period_schedule`.
+
+    Historically this helper only handled quarterly schedules; it now
+    delegates to ``normalize_period_schedule`` which supports both
+    quarterly and monthly granularities.
+    """
+
+    return normalize_period_schedule(
+        quarters,
+        df,
+        timestamp_col,
+        temporal_granularity=temporal_granularity,
+    )
 
 
 def track_cumulative_movement(
@@ -208,7 +316,7 @@ def track_cumulative_movement(
         df: Input pandas DataFrame
         entity_col: Column name for entity identifier
         timestamp_col: Column name for timestamp (datetime type)
-        quarters: Quarter specification (see normalize_quarter_schedule)
+        quarters: Period specification (see normalize_period_schedule)
         min_total_count: Minimum total count for inclusion (default: 20)
         decline_window_quarters: Max quarters after last observation (default: 6)
         temporal_granularity: Time granularity for GLMM ('quarterly', 'yearly', 'semiannual')
@@ -217,10 +325,12 @@ def track_cumulative_movement(
 
     Returns:
         Tuple of (movement_df, metadata_dict)
-        - movement_df: Quarter-by-quarter tracking with columns:
+        - movement_df: Period-by-period tracking with columns:
           [entity, quarter, period_count, cumulative_count, period_x, period_y,
            period_quadrant, global_quadrant, global_x, global_y,
            count_total, x_delta, y_delta, quadrant_differs]
+          (the ``quarter`` column serves as the canonical period axis
+          for both quarterly and monthly granularities)
         - metadata_dict: Tracking statistics and configuration
 
     Examples:
@@ -239,15 +349,22 @@ def track_cumulative_movement(
     df = df.copy()
     df[timestamp_col] = pd.to_datetime(df[timestamp_col])
 
-    # normalize quarter schedule
-    quarter_schedule = normalize_quarter_schedule(quarters, df, timestamp_col)
+    # normalize quarter/month schedule (generic period schedule)
+    period_schedule = normalize_period_schedule(
+        quarters,
+        df,
+        timestamp_col,
+        temporal_granularity=temporal_granularity,
+    )
 
-    if len(quarter_schedule) == 0:
-        print("Warning: No quarter boundaries available for cumulative tracking")
+    period_col = "quarter"
+
+    if len(period_schedule) == 0:
+        print("Warning: No period boundaries available for cumulative tracking")
         empty_df = pd.DataFrame(
             columns=[
                 "entity",
-                "quarter",
+                period_col,
                 "period_count",
                 "cumulative_count",
                 "period_x",
@@ -308,8 +425,8 @@ def track_cumulative_movement(
     # step 2: determine valid entities at analysis endpoint
     print("\n[2/3] Determining valid entities at analysis endpoint...")
 
-    # get endpoint (last quarter)
-    final_quarter_name, final_quarter_date = quarter_schedule[-1]
+    # get endpoint (last period in schedule)
+    final_quarter_name, final_quarter_date = period_schedule[-1]
     print(f"Analysis endpoint: {final_quarter_name} ({final_quarter_date})")
 
     # calculate valid entities based on cumulative totals up to endpoint
@@ -360,12 +477,12 @@ def track_cumulative_movement(
         f"{n_valid_at_endpoint}"
     )
 
-    # step 3: track movement through quarters
-    print(f"\n[3/3] Tracking movement through {len(quarter_schedule)} quarters...")
+    # step 3: track movement through periods
+    print(f"\n[3/3] Tracking movement through {len(period_schedule)} periods...")
 
     movement_records = []
 
-    for quarter_name, end_date_str in quarter_schedule:
+    for quarter_name, end_date_str in period_schedule:
         print(f"  [{quarter_name}] Running GLMM on cumulative data...", end=" ")
 
         # filter to cumulative data up to this quarter
@@ -402,7 +519,7 @@ def track_cumulative_movement(
                     movement_records.append(
                         {
                             "entity": entity,
-                            "quarter": quarter_name,
+                            period_col: quarter_name,
                             "cumulative_count": row["count"],
                             "period_x": row["Random_Intercept"],
                             "period_y": row["Random_Slope"],
@@ -426,7 +543,7 @@ def track_cumulative_movement(
         movement_df = pd.DataFrame(
             columns=[
                 "entity",
-                "quarter",
+                period_col,
                 "period_count",
                 "cumulative_count",
                 "period_x",
@@ -445,8 +562,8 @@ def track_cumulative_movement(
     # step 4: calculate movement metrics
     print("\n[4/4] Calculating movement metrics...")
 
-    # add quarter-over-quarter changes
-    movement_df = movement_df.sort_values(["entity", "quarter"])
+    # add period-over-period changes
+    movement_df = movement_df.sort_values(["entity", period_col])
 
     # calculate deltas
     movement_df["x_delta"] = movement_df.groupby("entity")["period_x"].diff()
@@ -465,7 +582,7 @@ def track_cumulative_movement(
     # reorder columns for readability
     cols = [
         "entity",
-        "quarter",
+        period_col,
         "period_count",
         "cumulative_count",
         "period_x",
@@ -485,9 +602,9 @@ def track_cumulative_movement(
         + [c for c in movement_df.columns if c not in cols]
     ]
 
-    print(f"Tracked {len(movement_df)} entity-quarter observations")
+    print(f"Tracked {len(movement_df)} entity-period observations")
     print(f"Entities tracked: {movement_df['entity'].nunique()}")
-    print(f"Periods covered: {movement_df['quarter'].nunique()}")
+    print(f"Periods covered: {movement_df[period_col].nunique()}")
 
     divergence_count = movement_df["quadrant_differs"].sum()
     divergence_pct = (
@@ -500,11 +617,11 @@ def track_cumulative_movement(
         "entities_tracked": movement_df["entity"].nunique()
         if not movement_df.empty
         else 0,
-        "quarters_analyzed": len(quarter_schedule),
+        "quarters_analyzed": len(period_schedule),
         "total_observations": len(movement_df),
         "divergence_rate": divergence_pct,
         "temporal_granularity": temporal_granularity,
-        "quarter_schedule": quarter_schedule,
+        "quarter_schedule": period_schedule,
     }
 
     return movement_df, metadata
@@ -531,9 +648,36 @@ def load_or_track_movement(
 
     csv_path: str | None = None
     if use_cache:
-        csv_path = latest_artifact_csv("movement", entity_name, output_dir)
+        csv_path = latest_artifact_csv(
+            "movement",
+            entity_name,
+            output_dir,
+            temporal_granularity=temporal_granularity,
+        )
         if csv_path:
             movement_df = pd.read_csv(csv_path)
+            if temporal_granularity == "monthly":
+                # New-style monthly CSVs use a friendlier ``month``
+                # column on disk; normalize to ``quarter`` in-memory
+                # for compatibility with existing code.
+                if (
+                    "month" in movement_df.columns
+                    and "quarter" not in movement_df.columns
+                ):
+                    movement_df = movement_df.rename(columns={"month": "quarter"})
+
+                # Legacy monthly CSVs were written with a ``quarter``
+                # column. Treat that as ``month`` for users by
+                # rewriting the CSV header to ``month`` while keeping
+                # the in-memory schema unchanged.
+                elif (
+                    "quarter" in movement_df.columns
+                    and "month" not in movement_df.columns
+                ):
+                    month_df = movement_df.rename(columns={"quarter": "month"})
+                    month_df.to_csv(csv_path, index=False)
+                    movement_df = month_df.rename(columns={"month": "quarter"})
+
             return movement_df, csv_path
 
     movement_df, _meta = track_cumulative_movement(
@@ -545,8 +689,14 @@ def load_or_track_movement(
         temporal_granularity=temporal_granularity,
     )
 
+    # For monthly outputs, persist a friendlier "month" label on disk
+    # while keeping the in-memory DataFrame schema unchanged.
+    movement_to_save = movement_df
+    if temporal_granularity == "monthly" and "quarter" in movement_df.columns:
+        movement_to_save = movement_df.rename(columns={"quarter": "month"})
+
     csv_path = save_dataframe_to_csv(
-        movement_df,
+        movement_to_save,
         artifact="movement",
         entity_name=entity_name,
         temporal_granularity=temporal_granularity,

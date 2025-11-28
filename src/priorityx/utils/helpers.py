@@ -260,6 +260,7 @@ def generate_output_path(
         "quarterly": "Q",
         "yearly": "Y",
         "semiannual": "S",
+        "monthly": "M",
     }.get(temporal_granularity, "Q")
 
     timestamp = datetime.now().strftime("%Y%m%d")
@@ -305,15 +306,31 @@ def latest_artifact_csv(
     artifact: str,
     entity_name: str,
     output_dir: str = "results/csv",
+    temporal_granularity: str | None = None,
 ) -> str | None:
     """Find the latest CSV for a given artifact/entity pair.
 
     Assumes filenames follow ``generate_output_path`` convention:
     ``<output_dir>/<artifact>-<entity_slug>-<granularity>-<YYYYMMDD>.csv``.
+
+    If ``temporal_granularity`` is provided, restricts matches to that
+    granularity suffix (e.g. "Q", "M"); otherwise returns the latest
+    CSV across all granularities.
     """
 
     slug = entity_name.lower().replace(" ", "_")
     directory = Path(output_dir)
-    pattern = f"{artifact}-{slug}-*.csv"
+
+    if temporal_granularity is not None:
+        granularity_suffix = {
+            "quarterly": "Q",
+            "yearly": "Y",
+            "semiannual": "S",
+            "monthly": "M",
+        }.get(temporal_granularity, "Q")
+        pattern = f"{artifact}-{slug}-{granularity_suffix}-*.csv"
+    else:
+        pattern = f"{artifact}-{slug}-*.csv"
+
     matches = sorted(directory.glob(pattern))
     return str(matches[-1]) if matches else None

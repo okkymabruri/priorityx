@@ -133,9 +133,8 @@ results/csv/trajectories-fsp-Q-20251126.csv
 
 ### EWS canonical CSV outputs
 
-For the complaints Early Warning System
-(`consumer-complaint-analysis/ews/complaints_quadrant_analysis.py`), the
-canonical CSV artifacts per run are:
+For the complaints Early Warning System (EWS) pipelines, the canonical
+CSV artifacts per run are:
 
 ```text
 movement-*.csv

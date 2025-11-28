@@ -69,7 +69,7 @@ def fit_priority_matrix(
     min_observations: int = 3,
     min_total_count: int = 0,
     decline_window_quarters: int = 6,
-    temporal_granularity: Literal["yearly", "quarterly", "semiannual"] = "yearly",
+    temporal_granularity: Literal["yearly", "quarterly", "semiannual", "monthly"] = "yearly",
     vcp_p: float = DEFAULT_VCP_P,
     fe_p: float = DEFAULT_FE_P,
     verbose: bool = False,
@@ -215,6 +215,25 @@ def fit_priority_matrix(
                 .sort_values(["year", "semester", entity_col])
             )
 
+    elif temporal_granularity == "monthly":
+        df["year"] = df[timestamp_col].dt.year
+        df["month"] = df[timestamp_col].dt.month
+
+        if count_col:
+            df_prepared = (
+                df.groupby(["year", "month", entity_col])[count_col]
+                .sum()
+                .reset_index(name="count")
+                .sort_values(["year", "month", entity_col])
+            )
+        else:
+            df_prepared = (
+                df.groupby(["year", "month", entity_col])
+                .size()
+                .reset_index(name="count")
+                .sort_values(["year", "month", entity_col])
+            )
+
     else:  # yearly
         df["year"] = df[timestamp_col].dt.year
 
@@ -267,6 +286,16 @@ def fit_priority_matrix(
         mean_time = df_prepared["time_continuous"].mean()
         df_prepared["time"] = df_prepared["time_continuous"] - mean_time
 
+    elif temporal_granularity == "monthly":
+        # continuous monthly time: year + (month-1)/12
+        df_prepared["time_continuous"] = (
+            df_prepared["year"] + (df_prepared["month"] - 1) / 12
+        )
+
+        # center for numerical stability
+        mean_time = df_prepared["time_continuous"].mean()
+        df_prepared["time"] = df_prepared["time_continuous"] - mean_time
+
     else:  # yearly
         # center year for numerical stability
         mean_year = df_prepared["year"].mean()
@@ -280,6 +309,8 @@ def fit_priority_matrix(
         df_prepared["quarter"] = df_prepared["quarter"].astype("category")
     elif temporal_granularity == "semiannual":
         df_prepared["semester"] = df_prepared["semester"].astype("category")
+    elif temporal_granularity == "monthly":
+        df_prepared["month"] = df_prepared["month"].astype("category")
 
     # ensure positive counts for poisson
     df_prepared = df_prepared[df_prepared["count"] > 0]
@@ -296,10 +327,14 @@ def fit_priority_matrix(
         formula += " + C(quarter)"
     elif temporal_granularity == "semiannual" and n_years >= 2:
         formula += " + C(semester)"
+    elif temporal_granularity == "monthly" and n_years >= 2:
+        formula += " + C(month)"
     elif temporal_granularity == "quarterly" and n_years == 1:
         print("  Warning: Single-year quarterly data detected, skipping seasonal dummies to avoid multicollinearity")
     elif temporal_granularity == "semiannual" and n_years == 1:
         print("  Warning: Single-year semiannual data detected, skipping seasonal dummies to avoid multicollinearity")
+    elif temporal_granularity == "monthly" and n_years == 1:
+        print("  Warning: Single-year monthly data detected, skipping seasonal dummies to avoid multicollinearity")
 
     # random effects: intercept + slope per entity
     random_formulas = {

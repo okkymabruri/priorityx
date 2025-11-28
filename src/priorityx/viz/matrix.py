@@ -8,6 +8,8 @@ import matplotlib.ticker as ticker
 import pandas as pd
 from matplotlib.lines import Line2D
 
+from priorityx.core.quadrants import get_quadrant_label
+
 # try to import adjustText for label positioning
 try:
     from adjustText import adjust_text
@@ -144,16 +146,14 @@ def plot_priority_matrix(
 
     # define colors for each quadrant (tab20 - distinct hues)
     colors = {
-        "Q1": "#d62728",  # tab red - critical
-        "Q2": "#ff7f0e",  # tab orange - investigate
-        "Q4": "#1f77b4",  # tab blue - low priority
-        "Q3": "#2ca02c",  # tab green - monitor
+        "Q1": "#d62728",  # top-right quadrant
+        "Q2": "#ff7f0e",  # top-left quadrant
+        "Q4": "#1f77b4",  # bottom-right quadrant
+        "Q3": "#2ca02c",  # bottom-left quadrant
     }
     quadrant_display = {
-        "Q1": "Q1 (Critical)",
-        "Q2": "Q2 (Investigate)",
-        "Q3": "Q3 (Monitor)",
-        "Q4": "Q4 (Low Priority)",
+        q: get_quadrant_label(q, x_label="Volume", y_label="Growth")
+        for q in ["Q1", "Q2", "Q3", "Q4"]
     }
 
     # plot all points

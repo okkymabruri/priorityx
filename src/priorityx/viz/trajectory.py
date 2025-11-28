@@ -6,6 +6,7 @@ import warnings
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from priorityx.core.quadrants import get_quadrant_label
 from priorityx.utils.helpers import save_dataframe_to_csv
 
 # suppress noisy FancyArrowPatch fallback warnings from annotate/adjustments
@@ -120,16 +121,14 @@ def plot_entity_trajectories(
 
     # define colors for quadrants (tab20 - distinct hues)
     colors = {
-        "Q1": "#d62728",  # critical
-        "Q2": "#ff7f0e",  # investigate
-        "Q4": "#1f77b4",  # low priority
-        "Q3": "#2ca02c",  # monitor
+        "Q1": "#d62728",  # top-right quadrant
+        "Q2": "#ff7f0e",  # top-left quadrant
+        "Q4": "#1f77b4",  # bottom-right quadrant
+        "Q3": "#2ca02c",  # bottom-left quadrant
     }
     quadrant_display = {
-        "Q1": "Q1 (Critical)",
-        "Q2": "Q2 (Investigate)",
-        "Q3": "Q3 (Monitor)",
-        "Q4": "Q4 (Low Priority)",
+        q: get_quadrant_label(q, x_label="Volume", y_label="Growth")
+        for q in ["Q1", "Q2", "Q3", "Q4"]
     }
 
     # track usage counts per color to slightly vary hue if needed

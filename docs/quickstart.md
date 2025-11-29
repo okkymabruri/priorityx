@@ -86,3 +86,11 @@ By default, outputs saved to:
 - **`results/`** - All CSV data files (entity scores, transitions, movement tracking)
 
 You can customize output directories using the `output_dir` parameter in visualization functions.
+
+## Deterministic runs
+
+Set `PRIORITYX_GLMM_SEED` (or call `set_glmm_random_seed()`) before running analyses to obtain repeatable GLMM estimates during debugging or CI checks:
+
+```bash
+PRIORITYX_GLMM_SEED=1234 python your_script.py
+```

@@ -16,14 +16,6 @@ pip install priorityx
 
 ## Quick Start
 
-### Deterministic runs
-
-Set `PRIORITYX_GLMM_SEED` (or call `set_glmm_random_seed()`) before running analyses to obtain repeatable GLMM estimates during debugging or CI checks:
-
-```bash
-PRIORITYX_GLMM_SEED=1234 python your_script.py
-```
-
 ```python
 import pandas as pd
 from priorityx.core.glmm import fit_priority_matrix

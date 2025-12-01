@@ -105,9 +105,11 @@ def extract_transitions(
     - No oscillations in risk classification
 
     Args:
-        movement_df: DataFrame from track_cumulative_movement()
-                    Required columns: entity, quarter, period_quadrant,
-                    global_quadrant, period_x, period_y, x_delta, y_delta
+        movement_df: DataFrame from track_cumulative_movement(). Expected
+                    to contain the canonical period column (``quarter``)
+                    whose labels may be quarterly ("YYYY-QN") or monthly
+                    ("YYYY-MM"), plus: entity, period_quadrant,
+                    global_quadrant, period_x, period_y, x_delta, y_delta.
         focus_risk_increasing: Only return risk-increasing transitions (default: True)
                               If False, includes all transitions including improvements
 
@@ -132,9 +134,11 @@ def extract_transitions(
     """
     transitions = []
 
-    # group by entity and sort by quarter
+    period_col = "quarter"
+
+    # group by entity and sort by period
     for entity, entity_data in movement_df.groupby("entity"):
-        entity_data = entity_data.sort_values("quarter")
+        entity_data = entity_data.sort_values(period_col)
 
         # get global quadrant (stable across all periods)
         global_quad = entity_data.iloc[0]["global_quadrant"]
@@ -161,7 +165,7 @@ def extract_transitions(
                 transitions.append(
                     {
                         "entity": entity,
-                        "transition_quarter": next_row["quarter"],
+                        "transition_quarter": next_row[period_col],
                         "from_quadrant": from_quad,
                         "to_quadrant": to_quad,
                         "risk_level": risk_level,
@@ -181,8 +185,8 @@ def extract_transitions(
                 if growth_change > 1.0:
                     transitions.append(
                         {
-                            "entity": entity,
-                            "transition_quarter": next_row["quarter"],
+                        "entity": entity,
+                        "transition_quarter": next_row[period_col],
                             "from_quadrant": curr_row["period_quadrant"],
                             "to_quadrant": f"{next_row['period_quadrant']}*Y",  # *Y = growth spike
                             "risk_level": "critical",

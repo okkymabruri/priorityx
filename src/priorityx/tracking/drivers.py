@@ -274,11 +274,13 @@ def extract_transition_drivers(
     including volume changes, growth changes, and contributing sub-categories.
 
     Args:
-        movement_df: Output from track_cumulative_movement()
+        movement_df: Output from track_cumulative_movement(). Expected to
+            contain the canonical period column ("quarter") whose labels
+            may be quarterly ("YYYY-QN") or monthly ("YYYY-MM").
         df_raw: Raw event data (pandas DataFrame)
         entity_name: Entity to analyze
-        quarter_from: Starting quarter (e.g., "2024-Q2")
-        quarter_to: Ending quarter (e.g., "2024-Q3")
+        quarter_from: Starting period label (e.g., "2024-Q2" or "2024-03")
+        quarter_to: Ending period label (e.g., "2024-Q3" or "2024-04")
         entity_col: Entity column name in df_raw
         timestamp_col: Timestamp column name in df_raw
         subcategory_cols: Optional list of subcategory columns to analyze
@@ -311,13 +313,14 @@ def extract_transition_drivers(
     df_raw[timestamp_col] = pd.to_datetime(df_raw[timestamp_col])
 
     # get transition data from movement_df
+    period_col = "quarter"
     entity_data = movement_df[movement_df["entity"] == entity_name]
 
     if len(entity_data) == 0:
         raise ValueError(f"Entity '{entity_name}' not found in movement data")
 
-    from_data = entity_data[entity_data["quarter"] == quarter_from]
-    to_data = entity_data[entity_data["quarter"] == quarter_to]
+    from_data = entity_data[entity_data[period_col] == quarter_from]
+    to_data = entity_data[entity_data[period_col] == quarter_to]
 
     if len(from_data) == 0:
         raise ValueError(f"Quarter '{quarter_from}' not found for '{entity_name}'")

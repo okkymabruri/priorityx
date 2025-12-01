@@ -71,22 +71,24 @@ def plot_entity_trajectories(
         print("No movement data to visualize")
         return None
 
-    # trim trajectories after last quarter with new events
+    period_col = "quarter"
+
+    # trim trajectories after last period with new events
     if "period_count" in movement_df.columns:
         df_trim = movement_df.copy()
         active = df_trim[df_trim["period_count"].fillna(0) > 0]
         if not active.empty:
-            last_active = active.groupby("entity")["quarter"].max()
+            last_active = active.groupby("entity")[period_col].max()
             df_trim = df_trim.merge(
                 last_active.rename("last_active_quarter"),
                 on="entity",
                 how="left",
             )
             # keep only entities that ever had positive period_count
-            # and cut them at their last active quarter
+            # and cut them at their last active period
             df_trim = df_trim[
                 df_trim["last_active_quarter"].notna()
-                & (df_trim["quarter"] <= df_trim["last_active_quarter"])
+                & (df_trim[period_col] <= df_trim["last_active_quarter"])
             ]
             movement_df = df_trim
 
@@ -136,7 +138,7 @@ def plot_entity_trajectories(
 
     # plot trajectories for each entity
     for entity in entities_to_plot:
-        entity_data = df_plot[df_plot["entity"] == entity].sort_values("quarter")
+        entity_data = df_plot[df_plot["entity"] == entity].sort_values(period_col)
 
         if len(entity_data) < 2:
             continue
@@ -144,7 +146,7 @@ def plot_entity_trajectories(
         # use period coordinates for cumulative trajectory
         x = entity_data["period_x"].values
         y = entity_data["period_y"].values
-        quarters = entity_data["quarter"].values
+        quarters = entity_data[period_col].values
 
         # get color from global quadrant
         global_quad = entity_data.iloc[0]["global_quadrant"]

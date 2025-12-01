@@ -10,36 +10,32 @@ pip install priorityx
 
 ```python
 import pandas as pd
-from priorityx.core.glmm import fit_priority_matrix
-from priorityx.viz.matrix import plot_priority_matrix
+import priorityx as px
 
 # load your data
 df = pd.read_csv("your_data.csv")
 df["date"] = pd.to_datetime(df["date"])
 
 # fit priority matrix
-results, stats = fit_priority_matrix(
+results, stats = px.fit_priority_matrix(
     df,
     entity_col="service",      # your entity column
     timestamp_col="date",      # your date column
     temporal_granularity="quarterly",
-    min_observations=8
+    min_observations=8,
 )
 
 # visualize
-plot_priority_matrix(results, entity_name="Service", save_plot=True)
+px.plot_priority_matrix(results, entity_name="Service", save_plot=True)
 ```
 
 ## Full Workflow
 
 ```python
-from priorityx.tracking.movement import track_cumulative_movement
-from priorityx.tracking.transitions import extract_transitions
-from priorityx.tracking.drivers import extract_transition_drivers, display_transition_drivers
-from priorityx.viz.timeline import plot_transition_timeline
+import priorityx as px
 
 # track movement over time
-movement, meta = track_cumulative_movement(
+movement, meta = px.track_cumulative_movement(
     df,
     entity_col="service",
     timestamp_col="date",
@@ -47,15 +43,15 @@ movement, meta = track_cumulative_movement(
 )
 
 # detect transitions
-transitions = extract_transitions(movement)
+transitions = px.extract_transitions(movement)
 
 # visualize transitions
-plot_transition_timeline(transitions, entity_name="Service", save_plot=True)
+px.plot_transition_timeline(transitions, entity_name="Service", save_plot=True)
 
 # analyze drivers for specific transition
 if not transitions.empty:
     first_transition = transitions.iloc[0]
-    analysis = extract_transition_drivers(
+    analysis = px.extract_transition_drivers(
         movement_df=movement,
         df_raw=df,
         entity_name=first_transition["entity"],
@@ -66,7 +62,7 @@ if not transitions.empty:
         top_n_subcategories=5,
         min_subcategory_delta=2
     )
-    display_transition_drivers(analysis)
+    px.display_transition_drivers(analysis)
 
     # subcategory columns (e.g., severity/product/topic) are auto-detected
     # when not provided; pass subcategory_cols=[...] to override.

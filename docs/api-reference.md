@@ -5,9 +5,9 @@
 ### fit_priority_matrix
 
 ```python
-from priorityx.core.glmm import fit_priority_matrix
+import priorityx as px
 
-results, stats = fit_priority_matrix(
+results, stats = px.fit_priority_matrix(
     df,
     entity_col,
     timestamp_col,
@@ -50,9 +50,9 @@ Fits Poisson GLMM to classify entities into priority quadrants.
 ### track_cumulative_movement
 
 ```python
-from priorityx.tracking.movement import track_cumulative_movement
+import priorityx as px
 
-movement, meta = track_cumulative_movement(
+movement, meta = px.track_cumulative_movement(
     df,
     entity_col,
     timestamp_col,
@@ -74,9 +74,9 @@ Tracks entity movement through priority quadrants over time.
 ### extract_transitions
 
 ```python
-from priorityx.tracking.transitions import extract_transitions
+import priorityx as px
 
-transitions = extract_transitions(
+transitions = px.extract_transitions(
     movement_df,
     focus_risk_increasing=True
 )
@@ -90,9 +90,9 @@ Extracts quadrant transitions from movement data.
 ### extract_transition_drivers
 
 ```python
-from priorityx.tracking.drivers import extract_transition_drivers
+import priorityx as px
 
-analysis = extract_transition_drivers(
+analysis = px.extract_transition_drivers(
     movement_df,
     df_raw,
     entity_name="Service A",
@@ -156,9 +156,9 @@ Classifies supervisory priority (1=Critical, 2=Investigate, 3=Monitor, 4=Low).
 ### plot_priority_matrix
 
 ```python
-from priorityx.viz.matrix import plot_priority_matrix
+import priorityx as px
 
-fig = plot_priority_matrix(
+fig = px.plot_priority_matrix(
     results_df,
     entity_name="Entity",
     figsize=(16, 12),
@@ -174,9 +174,9 @@ Creates scatter plot of priority matrix.
 ### plot_transition_timeline
 
 ```python
-from priorityx.viz.timeline import plot_transition_timeline
+import priorityx as px
 
-fig = plot_transition_timeline(
+fig = px.plot_transition_timeline(
     transitions_df,
     entity_name="Entity",
     filter_risk_levels=["critical", "high"],
@@ -192,9 +192,9 @@ Creates timeline heatmap of transitions. Passing `movement_df` is required to co
 ### plot_entity_trajectories
 
 ```python
-from priorityx.viz.trajectory import plot_entity_trajectories
+import priorityx as px
 
-fig = plot_entity_trajectories(
+fig = px.plot_entity_trajectories(
     movement_df,
     entity_name="Entity",
     max_entities=10,

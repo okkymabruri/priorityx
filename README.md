@@ -18,19 +18,18 @@ pip install priorityx
 
 ```python
 import pandas as pd
-from priorityx.core.glmm import fit_priority_matrix
-from priorityx.viz.matrix import plot_priority_matrix
+import priorityx as px
 
 df = pd.read_csv("data.csv")
 
-results, stats = fit_priority_matrix(
+results, stats = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
-    temporal_granularity="quarterly"
+    temporal_granularity="quarterly",
 )
 
-plot_priority_matrix(results, entity_name="Service", save_plot=True)
+px.plot_priority_matrix(results, entity_name="Service", save_plot=True)
 ```
 
 ## Features

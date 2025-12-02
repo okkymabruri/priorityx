@@ -60,3 +60,24 @@ def test_extract_transitions_within_quadrant():
 
     assert len(transitions) > 0
     assert transitions.iloc[0]["risk_level"] == "critical"
+
+
+def test_extract_transitions_monthly_labels():
+    """Transitions should work when quarter labels are monthly strings."""
+
+    movement_df = pd.DataFrame(
+        {
+            "entity": ["A", "A", "A"],
+            "quarter": ["2024-01", "2024-02", "2024-03"],
+            "period_quadrant": ["Q3", "Q2", "Q1"],
+            "global_quadrant": ["Q2", "Q2", "Q2"],
+            "x_delta": [None, 0.5, 0.6],
+            "y_delta": [None, 0.2, 0.3],
+        }
+    )
+
+    transitions = extract_transitions(movement_df)
+
+    assert not transitions.empty
+    # labels should be carried through as-is
+    assert set(transitions["transition_quarter"]) <= {"2024-02", "2024-03"}

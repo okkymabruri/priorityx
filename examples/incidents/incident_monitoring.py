@@ -3,16 +3,7 @@
 
 import pandas as pd
 
-from priorityx.core.glmm import fit_priority_matrix
-from priorityx.tracking.movement import track_cumulative_movement
-from priorityx.tracking.transitions import extract_transitions
-from priorityx.tracking.drivers import (
-    extract_transition_drivers,
-    display_transition_drivers,
-)
-from priorityx.viz.matrix import plot_priority_matrix
-from priorityx.viz.timeline import plot_transition_timeline
-from priorityx.viz.trajectory import plot_entity_trajectories
+import priorityx as px
 from priorityx.utils.helpers import (
     display_quadrant_summary,
     display_transition_summary,
@@ -34,7 +25,7 @@ print("PRIORITY MATRIX ANALYSIS")
 
 temporal_granularity = "quarterly"
 entity_name = "Service"
-results, stats = fit_priority_matrix(
+results, stats = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
@@ -49,7 +40,7 @@ print(results[["entity", "Random_Intercept", "Random_Slope", "count", "quadrant"
 display_quadrant_summary(results, entity_name=entity_name, min_count=0)
 
 # visualize
-plot_priority_matrix(
+px.plot_priority_matrix(
     results,
     entity_name=entity_name,
     show_quadrant_labels=True,
@@ -61,7 +52,7 @@ plot_priority_matrix(
 print()
 print("CUMULATIVE MOVEMENT TRACKING")
 
-movement, meta = track_cumulative_movement(
+movement, meta = px.track_cumulative_movement(
     df,
     entity_col="service",
     timestamp_col="date",
@@ -84,7 +75,7 @@ movement_path = save_dataframe_to_csv(
 print(f"Movement CSV saved: {movement_path}")
 
 # visualize entity trajectories
-plot_entity_trajectories(
+px.plot_entity_trajectories(
     movement,
     entity_name=entity_name,
     max_entities=5,
@@ -93,12 +84,12 @@ plot_entity_trajectories(
 )
 
 # detect transitions
-transitions = extract_transitions(movement, focus_risk_increasing=True)
+transitions = px.extract_transitions(movement, focus_risk_increasing=True)
 
 print(f"\nDetected {len(transitions)} risk-increasing transitions")
 display_transition_summary(transitions, entity_name=entity_name)
 
-plot_transition_timeline(
+px.plot_transition_timeline(
     transitions,
     entity_name=entity_name,
     save_plot=True,
@@ -129,7 +120,7 @@ if len(critical_transitions) > 0:
     )
 
     if prev_quarter:
-        driver_analysis = extract_transition_drivers(
+        driver_analysis = px.extract_transition_drivers(
             movement_df=movement,
             df_raw=df,
             entity_name=trans["entity"],
@@ -141,7 +132,7 @@ if len(critical_transitions) > 0:
             min_subcategory_delta=2,
         )
 
-        display_transition_drivers(driver_analysis)
+        px.display_transition_drivers(driver_analysis)
 
 print()
 print("Analysis complete. Check plot/ and results/ in the current working directory.")

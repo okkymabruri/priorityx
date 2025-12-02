@@ -99,11 +99,6 @@ def extract_transitions(
     1. Quadrant-to-quadrant transitions (Q3→Q2, Q2→Q1, etc.)
     2. Within-quadrant dramatic changes (velocity thresholds)
 
-    Key Innovation:
-    - Detects transitions from period_quadrant changes (actual movement)
-    - Classifies risk using global_quadrant (stable baseline)
-    - No oscillations in risk classification
-
     Args:
         movement_df: DataFrame from track_cumulative_movement(). Expected
                     to contain the canonical period column (``quarter``)

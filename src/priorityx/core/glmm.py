@@ -9,9 +9,9 @@ import numpy as np
 import pandas as pd
 from statsmodels.genmod.bayes_mixed_glm import PoissonBayesMixedGLM
 
-# default priors (validated on regulatory data)
-DEFAULT_VCP_P = 3.5  # prior scale for random effects (higher = less shrinkage)
-DEFAULT_FE_P = 3.0  # prior scale for fixed effects
+# default prior scales for random and fixed effects
+DEFAULT_VCP_P = 3.5  # random effects prior scale
+DEFAULT_FE_P = 3.0  # fixed effects prior scale
 
 _ENV_VAR_NAME = "PRIORITYX_GLMM_SEED"
 _GLMM_RANDOM_SEED: Optional[int] = None

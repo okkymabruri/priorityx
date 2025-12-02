@@ -4,11 +4,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from priorityx.core.glmm import fit_priority_matrix
-from priorityx.tracking.movement import track_cumulative_movement
-from priorityx.tracking.transitions import extract_transitions
-from priorityx.viz.matrix import plot_priority_matrix
-from priorityx.viz.timeline import plot_transition_timeline
+import priorityx as px
 from priorityx.utils.helpers import (
     display_quadrant_summary,
     display_transition_summary,
@@ -64,7 +60,7 @@ df = pd.DataFrame(data)
 temporal_granularity = "quarterly"
 entity_name = "Department"
 
-results, stats = fit_priority_matrix(
+results, stats = px.fit_priority_matrix(
     df,
     entity_col="department",
     timestamp_col="date",
@@ -76,7 +72,7 @@ print(results[["entity", "Random_Intercept", "Random_Slope", "count", "quadrant"
 
 display_quadrant_summary(results, entity_name=entity_name, min_count=0)
 
-plot_priority_matrix(
+px.plot_priority_matrix(
     results,
     entity_name=entity_name,
     show_quadrant_labels=True,
@@ -84,7 +80,7 @@ plot_priority_matrix(
     save_csv=True,
 )
 
-movement, meta = track_cumulative_movement(
+movement, meta = px.track_cumulative_movement(
     df,
     entity_col="department",
     timestamp_col="date",
@@ -100,12 +96,12 @@ movement_path = save_dataframe_to_csv(
     temporal_granularity=temporal_granularity,
 )
 print(f"Movement CSV saved: {movement_path}")
-transitions = extract_transitions(movement, focus_risk_increasing=True)
+transitions = px.extract_transitions(movement, focus_risk_increasing=True)
 
 print(f"\nDetected {len(transitions)} risk-increasing transitions")
 display_transition_summary(transitions, entity_name=entity_name)
 
-plot_transition_timeline(
+px.plot_transition_timeline(
     transitions,
     entity_name=entity_name,
     save_plot=True,

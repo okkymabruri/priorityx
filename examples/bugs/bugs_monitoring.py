@@ -2,8 +2,7 @@
 # software bug tracking example (data pulled from GitHub raw)
 import pandas as pd
 
-from priorityx.core.glmm import fit_priority_matrix
-from priorityx.viz.matrix import plot_priority_matrix
+import priorityx as px
 
 RAW_DATA_URL = "https://raw.githubusercontent.com/okkymabruri/priorityx/main/examples/bugs/bugs.csv"
 
@@ -15,7 +14,7 @@ df["date"] = df["reported_date"]
 temporal_granularity = "quarterly"
 entity_name = "Component"
 
-results, stats = fit_priority_matrix(
+results, stats = px.fit_priority_matrix(
     df,
     entity_col="component",
     timestamp_col="date",
@@ -28,7 +27,7 @@ print("Software Bug Priority Matrix:")
 print(results[["entity", "Random_Intercept", "Random_Slope", "count", "quadrant"]])
 
 # visualize
-plot_priority_matrix(
+px.plot_priority_matrix(
     results,
     entity_name=entity_name,
     show_quadrant_labels=True,

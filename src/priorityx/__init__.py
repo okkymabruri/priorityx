@@ -11,6 +11,8 @@ while more advanced workflows can continue to import from the
 """
 
 from .api import (  # noqa: F401
+    aggregate_entity_metrics,
+    add_priority_indices,
     display_transition_drivers,
     extract_transition_drivers,
     extract_transitions,
@@ -39,5 +41,7 @@ __all__ = [
     "plot_priority_matrix",
     "plot_transition_timeline",
     "plot_entity_trajectories",
+    "aggregate_entity_metrics",
+    "add_priority_indices",
 ]
 

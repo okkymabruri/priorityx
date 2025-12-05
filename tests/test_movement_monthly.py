@@ -4,10 +4,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from priorityx.tracking.movement import track_cumulative_movement
-from priorityx.tracking.transitions import extract_transitions
-from priorityx.viz.timeline import plot_transition_timeline
-from priorityx.viz.trajectory import plot_entity_trajectories
+import priorityx as px
 
 
 def _generate_monthly_data(n_entities: int = 3, n_months: int = 12) -> pd.DataFrame:
@@ -34,7 +31,7 @@ def test_track_cumulative_movement_monthly_basic():
 
     df = _generate_monthly_data()
 
-    movement_df, meta = track_cumulative_movement(
+    movement_df, meta = px.track_cumulative_movement(
         df,
         entity_col="entity",
         timestamp_col="date",
@@ -54,7 +51,7 @@ def test_monthly_timeline_smoke():
 
     df = _generate_monthly_data()
 
-    movement_df, _ = track_cumulative_movement(
+    movement_df, _ = px.track_cumulative_movement(
         df,
         entity_col="entity",
         timestamp_col="date",
@@ -63,12 +60,12 @@ def test_monthly_timeline_smoke():
         temporal_granularity="monthly",
     )
 
-    transitions = extract_transitions(movement_df)
+    transitions = px.extract_transitions(movement_df)
 
     if transitions.empty:
         return
 
-    fig = plot_transition_timeline(
+    fig = px.plot_transition_timeline(
         transitions,
         entity_name="Entity",
         x_axis_granularity="monthly",
@@ -87,7 +84,7 @@ def test_monthly_trajectories_smoke():
 
     df = _generate_monthly_data()
 
-    movement_df, _ = track_cumulative_movement(
+    movement_df, _ = px.track_cumulative_movement(
         df,
         entity_col="entity",
         timestamp_col="date",
@@ -96,7 +93,7 @@ def test_monthly_trajectories_smoke():
         temporal_granularity="monthly",
     )
 
-    fig = plot_entity_trajectories(
+    fig = px.plot_entity_trajectories(
         movement_df,
         entity_name="Entity",
         temporal_granularity="monthly",

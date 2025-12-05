@@ -35,6 +35,8 @@ def plot_priority_matrix(
     top_n_labels: int = 5,
     show_quadrant_labels: bool = False,
     bubble_col: Optional[str] = None,
+    x_col: str = "Random_Intercept",
+    y_col: str = "Random_Slope",
     force_show_labels: Optional[List[str]] = None,
     force_hide_labels: Optional[List[str]] = None,
     skip_label_min_count: int = 0,
@@ -44,6 +46,8 @@ def plot_priority_matrix(
     csv_dir: str = "results/csv",
     temporal_granularity: str = "quarterly",
     close_fig: bool = False,
+    x_label: Optional[str] = None,
+    y_label: Optional[str] = None,
 ) -> plt.Figure:
     """
     Visualize priority matrix as scatter plot.
@@ -118,8 +122,9 @@ def plot_priority_matrix(
                 top_volume = q_data.nlargest(top_n_labels, "count").index.tolist()
                 topics_to_label[q].extend(top_volume)
 
-            # top by growth
-            top_growth = q_data.nlargest(top_n_labels, "Random_Slope").index.tolist()
+            # top by growth (or specified y_col)
+            sort_col = y_col if y_col in q_data.columns else "Random_Slope"
+            top_growth = q_data.nlargest(top_n_labels, sort_col).index.tolist()
             for idx in top_growth:
                 if idx not in topics_to_label[q]:
                     topics_to_label[q].append(idx)
@@ -151,8 +156,13 @@ def plot_priority_matrix(
         "Q4": "#1f77b4",  # bottom-right quadrant
         "Q3": "#2ca02c",  # bottom-left quadrant
     }
+    # Labels used in quadrant descriptions. If custom axis labels are
+    # provided, reuse them; otherwise default to generic Volume/Growth
+    # wording for backward compatibility.
+    quadrant_x_label = x_label or "Volume"
+    quadrant_y_label = y_label or "Growth"
     quadrant_display = {
-        q: get_quadrant_label(q, x_label="Volume", y_label="Growth")
+        q: get_quadrant_label(q, x_label=quadrant_x_label, y_label=quadrant_y_label)
         for q in ["Q1", "Q2", "Q3", "Q4"]
     }
 
@@ -161,8 +171,8 @@ def plot_priority_matrix(
         q_data = df[df["quadrant"] == q]
         if not q_data.empty:
             plt.scatter(
-                q_data["Random_Intercept"],
-                q_data["Random_Slope"],
+                q_data[x_col],
+                q_data[y_col],
                 s=q_data["size"],
                 color=color,
                 alpha=0.7,
@@ -215,8 +225,8 @@ def plot_priority_matrix(
                 label = row["entity"]
 
                 text = plt.text(
-                    row["Random_Intercept"],
-                    row["Random_Slope"],
+                    row[x_col],
+                    row[y_col],
                     label,
                     fontsize=14,
                     ha="center",
@@ -262,8 +272,10 @@ def plot_priority_matrix(
 
     # set labels
     axis_fontsize = 15
-    plt.xlabel(f"{entity_name} Volume (Relative)", fontsize=axis_fontsize)
-    plt.ylabel(f"{entity_name} Growth Rate (Relative)", fontsize=axis_fontsize)
+    default_x_axis = f"{entity_name} Volume (Relative)"
+    default_y_axis = f"{entity_name} Growth Rate (Relative)"
+    plt.xlabel(x_label or default_x_axis, fontsize=axis_fontsize)
+    plt.ylabel(y_label or default_y_axis, fontsize=axis_fontsize)
 
     # add title if provided
     if title is None:

@@ -11,6 +11,7 @@ without losing access to the more detailed submodules under
 """
 
 from .core.glmm import fit_priority_matrix, set_glmm_random_seed
+from .metrics import aggregate_entity_metrics, add_priority_indices
 from .tracking.movement import track_cumulative_movement, load_or_track_movement
 from .tracking.transitions import extract_transitions
 from .tracking.drivers import (
@@ -20,7 +21,6 @@ from .tracking.drivers import (
 from .viz.matrix import plot_priority_matrix
 from .viz.timeline import plot_transition_timeline
 from .viz.trajectory import plot_entity_trajectories
-
 
 # Thin alias for the common GLMM fit path.
 fit = fit_priority_matrix
@@ -38,4 +38,6 @@ __all__ = [
     "plot_priority_matrix",
     "plot_transition_timeline",
     "plot_entity_trajectories",
+    "aggregate_entity_metrics",
+    "add_priority_indices",
 ]

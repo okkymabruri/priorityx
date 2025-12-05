@@ -7,7 +7,7 @@ A four-tier priority system ranks quadrant transitions by urgency using movement
 | Priority | Label & Color | Main Triggers | Recommended Action |
 |----------|---------------|---------------|--------------------|
 | **1 – Crisis** 🔴 | Explosion requiring immediate response | ΔX ≥ 0.40 or ΔY ≥ 0.40 (≈3σ); volume jump ≥ 50 with ≥500 % growth; both axes spiking (`*XY`) | Launch crisis playbook, staff war room, monitor daily |
-| **2 – Investigate** 🟠 | Rapid escalation needing urgent review | |ΔX > 0.15 or |ΔY > 0.15; entry into Q1 with strong position; ≥100 % growth with ≥5 new complaints | Trigger early warning, assign analysts, tighten monitoring cadence |
+| **2 – Investigate** 🟠 | Rapid escalation needing urgent review | `|ΔX|` > 0.15 or `|ΔY|` > 0.15; entry into Q1 with strong position; ≥100 % growth with ≥5 new complaints | Trigger early warning, assign analysts, tighten monitoring cadence |
 | **3 – Monitor** 🟡 | Borderline movement worth watching | Position within ±0.10 of quadrant boundary; gentle Q1 entry | Track trend, document findings, review quarterly |
 | **4 – Low** 🟢 | Stable or improving | No conditions above met | Maintain routine oversight |
 

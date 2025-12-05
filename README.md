@@ -30,6 +30,18 @@ results, stats = px.fit_priority_matrix(
 )
 
 px.plot_priority_matrix(results, entity_name="Service", save_plot=True)
+
+# Optional: attach generic per-entity metrics (primary/secondary magnitudes)
+metrics = px.aggregate_entity_metrics(
+    df,
+    entity_col="service",
+    duration_start_col="opened_at",
+    duration_end_col="closed_at",
+    primary_col="exposure",
+    secondary_col="recovery",
+)
+results = results.merge(metrics, on="service", how="left")
+results = px.add_priority_indices(results)
 ```
 
 ## Features

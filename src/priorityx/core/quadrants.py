@@ -5,28 +5,29 @@ def classify_quadrant(
     intercept: float, slope: float, count: float = None, min_q1_count: int = 50
 ) -> str:
     """
-    Classify entity into priority quadrant.
+    Classify entity into priority quadrant based on coordinates.
+
+    Quadrant is determined purely by position (intercept/slope signs).
+    Count thresholds should be applied at filtering/visualization time,
+    not during classification.
 
     Args:
         intercept: Random intercept (volume indicator)
         slope: Random slope (growth indicator)
-        count: Absolute count for Q1 threshold
-        min_q1_count: Minimum count for Critical classification
+        count: (Deprecated) Retained for API compatibility, not used
+        min_q1_count: (Deprecated) Retained for API compatibility, not used
 
     Returns:
         Quadrant code: Q1 (Critical), Q2 (Investigate), Q3 (Monitor), Q4 (Low)
     """
     if intercept > 0 and slope > 0:
-        # would be Q1, but check absolute count threshold
-        if count is not None and count < min_q1_count:
-            return "Q2"  # high growth but insufficient count → investigate
-        return "Q1"  # crisis
+        return "Q1"  # crisis (high volume, high growth)
     elif intercept <= 0 and slope > 0:
-        return "Q2"  # investigate
+        return "Q2"  # investigate (low volume, high growth)
     elif intercept <= 0 and slope <= 0:
-        return "Q3"  # monitor
+        return "Q3"  # monitor (low volume, low growth)
     else:
-        return "Q4"  # low priority
+        return "Q4"  # low priority (high volume, low growth)
 
 
 def get_quadrant_label(

@@ -24,7 +24,9 @@ def plot_transition_timeline(
     max_entities: Optional[int] = 20,
     figsize: Tuple[int, int] = (16, 12),
     title: Optional[str] = None,
-    x_axis_granularity: Literal["quarterly", "semiannual", "yearly", "monthly"] = "quarterly",
+    x_axis_granularity: Literal[
+        "quarterly", "semiannual", "yearly", "monthly"
+    ] = "quarterly",
     sort_by_risk_first: bool = True,
     entity_name: str = "Entity",
     show_all_periods: bool = False,
@@ -174,9 +176,29 @@ def plot_transition_timeline(
             ["period_rank", "risk_order"], ascending=[False, True]
         )
     else:
-        # sort by count/volume
-        entity_priority = df.groupby("entity").agg({"risk_order": "min"})
-        entity_priority = entity_priority.sort_values("risk_order")
+        # sort by volume (descending) when movement_df is available.
+        # Fallback to risk order if movement data is missing.
+        if movement_df is not None and not movement_df.empty:
+            vol_col = None
+            if "count_total" in movement_df.columns:
+                vol_col = "count_total"
+            elif "cumulative_count" in movement_df.columns:
+                vol_col = "cumulative_count"
+
+            if vol_col is not None:
+                volumes = movement_df.groupby("entity")[vol_col].max()
+                entity_priority = pd.DataFrame({"volume": volumes})
+                # Keep only entities present in the (already filtered) transition set.
+                entity_priority = entity_priority.loc[
+                    entity_priority.index.intersection(df["entity"].unique())
+                ]
+                entity_priority = entity_priority.sort_values("volume", ascending=False)
+            else:
+                entity_priority = df.groupby("entity").agg({"risk_order": "min"})
+                entity_priority = entity_priority.sort_values("risk_order")
+        else:
+            entity_priority = df.groupby("entity").agg({"risk_order": "min"})
+            entity_priority = entity_priority.sort_values("risk_order")
 
     # limit to top N entities
     if max_entities and len(entity_priority) > max_entities:
@@ -383,12 +405,24 @@ def plot_transition_timeline(
     }
     axis_fontsize = 15
     ax.set_xlabel(xlabel_map.get(x_axis_granularity, "Period"), fontsize=axis_fontsize)
-    ax.set_ylabel(entity_name, fontsize=axis_fontsize)
+    
+    # Use readable y-axis label
+    if "fsp" in entity_name.lower():
+        ylabel = "FSP"
+    elif "topic" in entity_name.lower():
+        ylabel = "Topic"
+    elif "product" in entity_name.lower():
+        ylabel = "Product"
+    else:
+        ylabel = entity_name
+    ax.set_ylabel(ylabel, fontsize=axis_fontsize)
     ax.set_yticklabels(entities, fontsize=tick_fontsize)
 
+    # Only set title if not empty
     if title is None:
         title = f"{entity_name} Transition Timeline"
-    ax.set_title(title, fontsize=17, fontweight="bold", pad=20)
+    if title:  # Skip if empty string
+        ax.set_title(title, fontsize=17, fontweight="bold", pad=20)
 
     ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
     plt.tight_layout()

@@ -417,8 +417,8 @@ def track_cumulative_movement(
         entity = row[entity_col]
         global_baseline[entity] = {
             "global_quadrant": row["quadrant"],
-            "global_x": row["Random_Intercept"],
-            "global_y": row["Random_Slope"],
+            "global_x": row["x_score"],
+            "global_y": row["y_score"],
             "count_total": row["count"],
         }
 
@@ -516,14 +516,26 @@ def track_cumulative_movement(
                 entity = row[entity_col]
 
                 if entity in global_baseline:
+                    # Calculate period_quadrant from cumulative coordinates
+                    # This aligns transitions with trajectory visualization
+                    x, y = row["x_score"], row["y_score"]
+                    if x > 0 and y > 0:
+                        period_quad = "Q1"
+                    elif x <= 0 and y > 0:
+                        period_quad = "Q2"
+                    elif x <= 0 and y <= 0:
+                        period_quad = "Q3"
+                    else:
+                        period_quad = "Q4"
+                    
                     movement_records.append(
                         {
                             "entity": entity,
                             period_col: quarter_name,
                             "cumulative_count": row["count"],
-                            "period_x": row["Random_Intercept"],
-                            "period_y": row["Random_Slope"],
-                            "period_quadrant": row["quadrant"],
+                            "period_x": row["x_score"],
+                            "period_y": row["y_score"],
+                            "period_quadrant": period_quad,
                             "global_quadrant": global_baseline[entity][
                                 "global_quadrant"
                             ],

@@ -180,8 +180,8 @@ def extract_transitions(
                 if growth_change > 1.0:
                     transitions.append(
                         {
-                        "entity": entity,
-                        "transition_quarter": next_row[period_col],
+                            "entity": entity,
+                            "transition_quarter": next_row[period_col],
                             "from_quadrant": curr_row["period_quadrant"],
                             "to_quadrant": f"{next_row['period_quadrant']}*Y",  # *Y = growth spike
                             "risk_level": "critical",
@@ -285,9 +285,9 @@ def classify_priority(
     # check if moving to Q1 (critical quadrant)
     to_critical = to_quadrant == "Q1"
 
-    # determine spike axis for Crisis level (0.4 = 2.74 SD, aligns with 3-sigma rule)
-    y_spike = abs(y_delta) > 0.4
-    x_spike = abs(x_delta) > 0.4
+    # determine spike axis for Crisis level (0.40 ≈ 2.74σ, aligns with 3-sigma rule)
+    y_spike = abs(y_delta) > 0.40
+    x_spike = abs(x_delta) > 0.40
     explosion = percent_change > 500 and complaints_delta > 50
 
     # Priority 1: Crisis

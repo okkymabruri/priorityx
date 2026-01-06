@@ -33,10 +33,10 @@ def plot_priority_matrix(
     title: Optional[str] = None,
     figsize: Tuple[int, int] = (16, 12),
     top_n_labels: int = 5,
-    show_quadrant_labels: bool = False,
+    show_quadrant_labels: bool = True,
     bubble_col: Optional[str] = None,
-    x_col: str = "Random_Intercept",
-    y_col: str = "Random_Slope",
+    x_col: str = "x_score",
+    y_col: str = "y_score",
     force_show_labels: Optional[List[str]] = None,
     force_hide_labels: Optional[List[str]] = None,
     skip_label_min_count: int = 0,
@@ -48,6 +48,8 @@ def plot_priority_matrix(
     close_fig: bool = False,
     x_label: Optional[str] = None,
     y_label: Optional[str] = None,
+    bubble_scale: float = 0.3,
+    legend_loc: str = "lower right",
 ) -> plt.Figure:
     """
     Visualize priority matrix as scatter plot.
@@ -98,12 +100,22 @@ def plot_priority_matrix(
         # use log scaling for bubble sizes
         import numpy as np
 
-        df["size"] = 100 + 900 * (
-            np.log1p(df[bubble_col]) / np.log1p(df[bubble_col].max())
-        )
+        # Track null/zero bubble values for hollow ring rendering
+        df["_has_bubble"] = df[bubble_col].notna() & (df[bubble_col] > 0)
+        
+        # For valid bubbles, calculate size
+        valid_mask = df["_has_bubble"]
+        df["size"] = 150  # default size for hollow rings
+        if valid_mask.any():
+            valid_bubbles = df.loc[valid_mask, bubble_col]
+            base_sizes = 100 + 900 * (
+                np.log1p(valid_bubbles) / np.log1p(valid_bubbles.max())
+            )
+            df.loc[valid_mask, "size"] = base_sizes * float(bubble_scale)
     else:
-        # uniform bubble size
+        # uniform bubble size, all filled
         df["size"] = 200
+        df["_has_bubble"] = True
 
     # select entities to label
     df_labelable = df.copy()
@@ -166,19 +178,37 @@ def plot_priority_matrix(
         for q in ["Q1", "Q2", "Q3", "Q4"]
     }
 
-    # plot all points
+    # plot all points - filled for valid bubbles, hollow rings for null/0
     for q, color in colors.items():
         q_data = df[df["quadrant"] == q]
         if not q_data.empty:
-            plt.scatter(
-                q_data[x_col],
-                q_data[y_col],
-                s=q_data["size"],
-                color=color,
-                alpha=0.7,
-                label=f"Q{q[-1]}",
-                zorder=2,
-            )
+            # Points with valid bubble values - filled circles
+            filled = q_data[q_data["_has_bubble"]]
+            if not filled.empty:
+                plt.scatter(
+                    filled[x_col],
+                    filled[y_col],
+                    s=filled["size"],
+                    color=color,
+                    alpha=0.7,
+                    label=f"Q{q[-1]}",
+                    zorder=2,
+                )
+            
+            # Points with null/0 bubble values - hollow rings
+            hollow = q_data[~q_data["_has_bubble"]]
+            if not hollow.empty:
+                plt.scatter(
+                    hollow[x_col],
+                    hollow[y_col],
+                    s=hollow["size"],
+                    facecolors="none",  # hollow
+                    edgecolors=color,
+                    linewidths=1.5,
+                    alpha=0.7,
+                    label=f"Q{q[-1]} (no data)" if filled.empty else None,
+                    zorder=2,
+                )
 
     # add axis lines
     plt.axhline(0, color="grey", linestyle="--", alpha=0.7, linewidth=1)
@@ -189,30 +219,44 @@ def plot_priority_matrix(
 
     # add quadrant labels as background text
     if show_quadrant_labels:
-        xlim = ax.get_xlim()
-        ylim = ax.get_ylim()
-
-        # compute quadrant centers
-        quadrant_centers = {
-            "Q1": ((0 + xlim[1]) / 2, (0 + ylim[1]) / 2),  # top right
-            "Q2": ((xlim[0] + 0) / 2, (0 + ylim[1]) / 2),  # top left
-            "Q3": ((xlim[0] + 0) / 2, (ylim[0] + 0) / 2),  # bottom left
-            "Q4": ((0 + xlim[1]) / 2, (ylim[0] + 0) / 2),  # bottom right
+        # Use axes coordinates so labels stay centered even if x/y ranges are skewed.
+        # Also offset the quadrant that would be covered by the legend.
+        quadrant_centers_axes = {
+            "Q1": (0.78, 0.78),
+            "Q2": (0.22, 0.78),
+            "Q3": (0.22, 0.22),
+            "Q4": (0.78, 0.22),
         }
 
-        # place labels
-        for q, (cx, cy) in quadrant_centers.items():
+        legend_loc_norm = str(legend_loc).strip().lower()
+        if legend_loc_norm in {"lower right", "lower-right", "bottom right", "bottom-right"}:
+            quadrant_centers_axes["Q4"] = (0.60, 0.18)
+        elif legend_loc_norm in {"lower left", "lower-left", "bottom left", "bottom-left"}:
+            quadrant_centers_axes["Q3"] = (0.40, 0.18)
+        elif legend_loc_norm in {"upper left", "upper-left", "top left", "top-left"}:
+            quadrant_centers_axes["Q2"] = (0.40, 0.82)
+        elif legend_loc_norm in {"upper right", "upper-right", "top right", "top-right"}:
+            quadrant_centers_axes["Q1"] = (0.60, 0.82)
+
+        for q, (cx, cy) in quadrant_centers_axes.items():
             ax.text(
                 cx,
                 cy,
                 quadrant_display[q],
+                transform=ax.transAxes,
                 ha="center",
                 va="center",
                 fontsize=15,
-                color="gray",
-                alpha=0.45,
-                zorder=0,
+                color="dimgray",
+                alpha=0.75,
+                zorder=5,
                 fontweight="bold",
+                bbox={
+                    "facecolor": "white",
+                    "alpha": 0.35,
+                    "edgecolor": "none",
+                    "boxstyle": "round,pad=0.2",
+                },
             )
 
     # add entity labels
@@ -255,9 +299,10 @@ def plot_priority_matrix(
     tick_fontsize = 15
     ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
 
-    # create legend with equal-sized bubbles
+    # create legend with equal-sized bubbles (order: Q1, Q2, Q3, Q4)
     legend_elements = []
-    for q, color in colors.items():
+    for q in ["Q1", "Q2", "Q3", "Q4"]:
+        color = colors[q]
         legend_elements.append(
             Line2D(
                 [0],
@@ -272,21 +317,24 @@ def plot_priority_matrix(
 
     # set labels
     axis_fontsize = 15
-    default_x_axis = f"{entity_name} Volume (Relative)"
-    default_y_axis = f"{entity_name} Growth Rate (Relative)"
+    default_x_axis = "Volume (Relative)"
+    default_y_axis = "Growth Rate (Relative)"
     plt.xlabel(x_label or default_x_axis, fontsize=axis_fontsize)
     plt.ylabel(y_label or default_y_axis, fontsize=axis_fontsize)
 
     # add title if provided
     if title is None:
-        title = f"{entity_name} Priority Matrix"
+        pretty_name = entity_name.strip()
+        if "_" in pretty_name:
+            pretty_name = pretty_name.replace("_", " ").title()
+        title = f"{pretty_name} Priority Matrix"
     plt.title(title, fontsize=17, fontweight="bold", pad=20)
 
     # place legend
     legend_fontsize = 15
     plt.legend(
         handles=legend_elements,
-        loc="lower right",
+        loc=legend_loc,
         frameon=False,
         title="Quadrants",
         fontsize=legend_fontsize,
@@ -350,14 +398,18 @@ def plot_priority_matrix(
         }.get(temporal_granularity, "Q")
         csv_path = f"{csv_dir}/priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.csv"
 
-        # save key columns
+        # save key columns, plus any custom X/Y columns if present
         cols_to_save = [
             "entity",
             "quadrant",
-            "Random_Intercept",
-            "Random_Slope",
+            "x_score",
+            "y_score",
             "count",
         ]
+        for col in {x_col, y_col}:
+            if col not in cols_to_save:
+                cols_to_save.append(col)
+
         df[[c for c in cols_to_save if c in df.columns]].to_csv(csv_path, index=False)
         print(f"CSV saved: {csv_path}")
 

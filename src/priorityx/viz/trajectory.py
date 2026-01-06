@@ -245,20 +245,24 @@ def plot_entity_trajectories(
             zorder=0,
         )
 
-    # set labels
+    # set labels - use readable names
     axis_fontsize = 15
-    ax.set_xlabel(f"{entity_name} Volume (Relative)", fontsize=axis_fontsize)
-    ax.set_ylabel(f"{entity_name} Growth Rate (Relative)", fontsize=axis_fontsize)
-
-    if title:
-        ax.set_title(title, fontsize=17, fontweight="bold", pad=20)
+    if "fsp" in entity_name.lower():
+        ylabel = "FSP"
+    elif "topic" in entity_name.lower():
+        ylabel = "Topic"
+    elif "product" in entity_name.lower():
+        ylabel = "Product"
     else:
-        ax.set_title(
-            f"{entity_name} Entity Trajectory",
-            fontsize=17,
-            fontweight="bold",
-            pad=20,
-        )
+        ylabel = entity_name
+    ax.set_xlabel("Volume (Relative)", fontsize=axis_fontsize)
+    ax.set_ylabel("Growth Rate (Relative)", fontsize=axis_fontsize)
+
+    # Only set title if not empty string
+    if title is None:
+        title = f"{ylabel} Entity Trajectory"
+    if title:  # Skip if empty string
+        ax.set_title(title, fontsize=17, fontweight="bold", pad=20)
 
     # add legend for quadrants
     from matplotlib.lines import Line2D

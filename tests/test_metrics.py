@@ -41,26 +41,38 @@ def test_add_priority_indices_creates_indices():
         {
             "entity": ["A", "B"],
             "count": [10, 20],
-            "Random_Slope": [0.1, 0.2],
-            "total_primary": [300.0, 50.0],
+            "y_score": [0.1, 0.2],
+            "total_amount": [300.0, 50.0],
             "mean_duration": [5.0, 10.0],
-            "secondary_to_primary_ratio": [0.5, 0.8],
+            "recovery_ratio": [0.5, 0.8],
         }
     )
 
-    out = px.add_priority_indices(df)
+    out = px.add_priority_indices(
+        df,
+        volume_col="count",
+        growth_col="y_score",
+        severity_col="total_amount",
+        resolution_col="mean_duration",
+        recovery_col="recovery_ratio",
+    )
 
-    # z-scored components
+    # z-scored components (new naming: z_volume, z_growth, z_severity)
     for col in [
-        "z_count",
-        "z_Random_Slope",
-        "z_total_primary",
-        "z_neg_duration",
-        "z_ratio",
+        "z_volume",
+        "z_growth",
+        "z_severity",
+        "z_neg_resolution",
+        "z_recovery",
     ]:
         assert col in out.columns
 
-    # composite indices
+    # new composite indices
+    assert "RI" in out.columns
+    assert "SQI" in out.columns
+    assert "EWI" in out.columns
+
+    # legacy indices still available for backward compatibility
     assert "volume_growth_index" in out.columns
     assert "service_quality_index" in out.columns
     assert "early_warning_index" in out.columns

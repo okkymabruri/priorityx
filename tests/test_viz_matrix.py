@@ -10,11 +10,12 @@ import priorityx as px
 
 
 def _make_results_df() -> pd.DataFrame:
+    # current version: use x_score/y_score column names
     return pd.DataFrame(
         {
             "entity": ["A", "B"],
-            "Random_Intercept": [0.1, 0.2],
-            "Random_Slope": [0.01, 0.02],
+            "x_score": [0.1, 0.2],
+            "y_score": [0.01, 0.02],
             "alt_x": [1.0, 2.0],
             "alt_y": [10.0, 20.0],
             "quadrant": ["Q1", "Q2"],

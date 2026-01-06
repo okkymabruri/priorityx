@@ -14,7 +14,7 @@ def _generate_monthly_data(n_entities: int = 3, n_months: int = 12) -> pd.DataFr
     rows: list[dict] = []
 
     for e_idx in range(n_entities):
-        entity = f"Entity_{e_idx+1}"
+        entity = f"Entity_{e_idx + 1}"
         for m_idx in range(n_months):
             month_start = base_date + timedelta(days=30 * m_idx)
             n_obs = 5 + e_idx + m_idx // 2

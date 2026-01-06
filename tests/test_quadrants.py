@@ -13,8 +13,10 @@ def test_classify_quadrant_q1():
 
 
 def test_classify_quadrant_q1_threshold():
-    """Test Q1 threshold: insufficient count reclassified to Q2."""
-    assert classify_quadrant(1.5, 0.8, count=20) == "Q2"
+    """Test Q1: count param is deprecated, classification is purely position-based."""
+    # count param no longer affects classification (deprecated)
+    # high intercept + high slope = Q1 regardless of count
+    assert classify_quadrant(1.5, 0.8, count=20) == "Q1"
 
 
 def test_classify_quadrant_q2():

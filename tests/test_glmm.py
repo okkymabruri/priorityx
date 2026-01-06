@@ -2,6 +2,7 @@
 
 import pandas as pd
 from datetime import datetime, timedelta
+import numpy as np
 import priorityx as px
 
 
@@ -46,8 +47,9 @@ def test_fit_priority_matrix_basic():
 
     assert len(results) > 0
     assert "entity" in results.columns
-    assert "Random_Intercept" in results.columns
-    assert "Random_Slope" in results.columns
+    # current version: standardized column names
+    assert "x_score" in results.columns
+    assert "y_score" in results.columns
     assert "quadrant" in results.columns
 
 
@@ -175,3 +177,76 @@ def test_date_filter_monthly():
 
     assert len(results) > 0
     assert stats["temporal_granularity"] == "monthly"
+
+
+def test_y_metric_uses_gaussian_glmm():
+    """Custom Y metric should use Gaussian GLMM and produce nontrivial effects.
+
+    current version: metric_col replaced by y_metric param.
+    """
+
+    df = generate_test_data()
+    # Attach a simple synthetic metric that increases with entity index.
+    df = df.copy()
+    df["metric"] = 1.0
+    # encode entity index as part of the metric so that entities differ
+    for idx, name in enumerate(sorted(df["entity"].unique())):
+        df.loc[df["entity"] == name, "metric"] += idx
+
+    results, stats = px.fit_priority_matrix(
+        df,
+        entity_col="entity",
+        timestamp_col="date",
+        temporal_granularity="quarterly",
+        min_observations=3,
+        y_metric="metric",  # current version: use y_metric instead of metric_col
+    )
+
+    assert len(results) > 0
+    # Dual GLMM mode returns stats with y_stats nested
+    assert "y_stats" in stats
+    assert stats["y_stats"]["method"] in {
+        "MixedLM",
+        "GaussianVB",
+        "GaussianMAP",
+        "GaussianMLE",
+    }
+
+    x_scores = results["x_score"].to_numpy()
+    y_scores = results["y_score"].to_numpy()
+    # Both axes should have finite values
+    assert np.isfinite(x_scores).all()
+    assert np.isfinite(y_scores).all()
+
+
+def test_dual_metric_axes():
+    """Test fitting both X and Y as custom metrics.
+
+    current version: new feature - x_metric and y_metric params.
+    """
+
+    df = generate_test_data()
+    df = df.copy()
+    df["metric_x"] = 1.0
+    df["metric_y"] = 10.0
+    for idx, name in enumerate(sorted(df["entity"].unique())):
+        df.loc[df["entity"] == name, "metric_x"] += idx
+        df.loc[df["entity"] == name, "metric_y"] += idx * 2
+
+    results, stats = px.fit_priority_matrix(
+        df,
+        entity_col="entity",
+        timestamp_col="date",
+        temporal_granularity="quarterly",
+        min_observations=3,
+        x_metric="metric_x",
+        y_metric="metric_y",
+    )
+
+    assert len(results) > 0
+    assert "x_metric" in stats
+    assert "y_metric" in stats
+    assert stats["x_metric"] == "metric_x"
+    assert stats["y_metric"] == "metric_y"
+    assert "x_score" in results.columns
+    assert "y_score" in results.columns

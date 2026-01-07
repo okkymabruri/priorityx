@@ -34,6 +34,9 @@ def plot_priority_matrix(
     figsize: Tuple[int, int] = (16, 12),
     top_n_labels: int = 5,
     show_quadrant_labels: bool = True,
+    show_legend: bool = True,
+    quadrant_label_fontsize: int = 15,
+    quadrant_code_fontsize_delta: int = 6,
     bubble_col: Optional[str] = None,
     x_col: str = "x_score",
     y_col: str = "y_score",
@@ -105,13 +108,13 @@ def plot_priority_matrix(
         
         # For valid bubbles, calculate size
         valid_mask = df["_has_bubble"]
-        df["size"] = 150  # default size for hollow rings
+        df["size"] = 150.0  # default size for hollow rings (float to avoid dtype warning)
         if valid_mask.any():
             valid_bubbles = df.loc[valid_mask, bubble_col]
             base_sizes = 100 + 900 * (
                 np.log1p(valid_bubbles) / np.log1p(valid_bubbles.max())
             )
-            df.loc[valid_mask, "size"] = base_sizes * float(bubble_scale)
+            df.loc[valid_mask, "size"] = (base_sizes * float(bubble_scale)).astype(float)
     else:
         # uniform bubble size, all filled
         df["size"] = 200
@@ -228,35 +231,83 @@ def plot_priority_matrix(
             "Q4": (0.78, 0.22),
         }
 
-        legend_loc_norm = str(legend_loc).strip().lower()
-        if legend_loc_norm in {"lower right", "lower-right", "bottom right", "bottom-right"}:
-            quadrant_centers_axes["Q4"] = (0.60, 0.18)
-        elif legend_loc_norm in {"lower left", "lower-left", "bottom left", "bottom-left"}:
-            quadrant_centers_axes["Q3"] = (0.40, 0.18)
-        elif legend_loc_norm in {"upper left", "upper-left", "top left", "top-left"}:
-            quadrant_centers_axes["Q2"] = (0.40, 0.82)
-        elif legend_loc_norm in {"upper right", "upper-right", "top right", "top-right"}:
-            quadrant_centers_axes["Q1"] = (0.60, 0.82)
+        # Only offset quadrant labels to avoid the legend when the legend is
+        # actually being rendered.
+        if show_legend:
+            legend_loc_norm = str(legend_loc).strip().lower()
+            if legend_loc_norm in {"lower right", "lower-right", "bottom right", "bottom-right"}:
+                quadrant_centers_axes["Q4"] = (0.60, 0.18)
+            elif legend_loc_norm in {"lower left", "lower-left", "bottom left", "bottom-left"}:
+                quadrant_centers_axes["Q3"] = (0.40, 0.18)
+            elif legend_loc_norm in {"upper left", "upper-left", "top left", "top-left"}:
+                quadrant_centers_axes["Q2"] = (0.40, 0.82)
+            elif legend_loc_norm in {"upper right", "upper-right", "top right", "top-right"}:
+                quadrant_centers_axes["Q1"] = (0.60, 0.82)
+
+        code_fontsize = max(1, int(quadrant_label_fontsize) + int(quadrant_code_fontsize_delta))
 
         for q, (cx, cy) in quadrant_centers_axes.items():
+            label = quadrant_display[q]
+            # Split into a large quadrant code + smaller description to make the
+            # numbering easier to read (Q1 is top-right, then counter-clockwise).
+            desc = label
+            if label.startswith(f"{q} "):
+                desc = label[len(q) + 1 :]
+
+            bbox = {
+                "facecolor": "white",
+                "alpha": 0.35,
+                "edgecolor": "none",
+                "boxstyle": "round,pad=0.2",
+            }
+
+            # Render as two lines (Q# on top, description below) with tight
+            # spacing. Use a single bbox behind both lines to avoid the visual
+            # impression of a blank line (two separate bboxes create a gap).
+            dy = 0.0
+
+            # Invisible sizing text draws the single shared bbox.
             ax.text(
                 cx,
                 cy,
-                quadrant_display[q],
+                f"{q}\n{desc}",
                 transform=ax.transAxes,
                 ha="center",
                 va="center",
-                fontsize=15,
+                fontsize=quadrant_label_fontsize,
+                color="dimgray",
+                alpha=0.0,
+                zorder=4,
+                fontweight="bold",
+                bbox=bbox,
+                linespacing=0.8,
+            )
+
+            ax.text(
+                cx,
+                cy + dy,
+                q,
+                transform=ax.transAxes,
+                ha="center",
+                va="bottom",
+                fontsize=code_fontsize,
+                color="dimgray",
+                alpha=0.85,
+                zorder=5,
+                fontweight="bold",
+            )
+            ax.text(
+                cx,
+                cy - dy,
+                desc,
+                transform=ax.transAxes,
+                ha="center",
+                va="top",
+                fontsize=quadrant_label_fontsize,
                 color="dimgray",
                 alpha=0.75,
                 zorder=5,
                 fontweight="bold",
-                bbox={
-                    "facecolor": "white",
-                    "alpha": 0.35,
-                    "edgecolor": "none",
-                    "boxstyle": "round,pad=0.2",
-                },
             )
 
     # add entity labels
@@ -331,15 +382,16 @@ def plot_priority_matrix(
     plt.title(title, fontsize=17, fontweight="bold", pad=20)
 
     # place legend
-    legend_fontsize = 15
-    plt.legend(
-        handles=legend_elements,
-        loc=legend_loc,
-        frameon=False,
-        title="Quadrants",
-        fontsize=legend_fontsize,
-        title_fontsize=legend_fontsize,
-    )
+    if show_legend:
+        legend_fontsize = 15
+        plt.legend(
+            handles=legend_elements,
+            loc=legend_loc,
+            frameon=False,
+            title="Quadrants",
+            fontsize=legend_fontsize,
+            title_fontsize=legend_fontsize,
+        )
 
     # remove chart borders
     ax.spines["top"].set_visible(False)

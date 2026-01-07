@@ -22,16 +22,43 @@ import priorityx as px
 
 df = pd.read_csv("data.csv")
 
+# Default: volume x growth (single GLMM)
 results, stats = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
     temporal_granularity="quarterly",
 )
+# Returns: entity, x_score, y_score, count, quadrant
 
 px.plot_priority_matrix(results, entity_name="Service", save_plot=True)
+```
 
-# Optional: attach generic per-entity metrics (primary/secondary magnitudes)
+### Custom Axes
+
+```python
+# Custom Y axis: volume × resolution_days (two GLMMs)
+results, _ = px.fit_priority_matrix(
+    df,
+    entity_col="service",
+    timestamp_col="date",
+    y_metric="resolution_days",
+)
+
+# Custom both axes: disputed_amount × paid_amount
+results, _ = px.fit_priority_matrix(
+    df,
+    entity_col="service",
+    timestamp_col="date",
+    x_metric="disputed_amount",
+    y_metric="paid_amount",
+)
+```
+
+### Composite Indices
+
+```python
+# Add entity metrics
 metrics = px.aggregate_entity_metrics(
     df,
     entity_col="service",
@@ -40,8 +67,24 @@ metrics = px.aggregate_entity_metrics(
     primary_col="exposure",
     secondary_col="recovery",
 )
-results = results.merge(metrics, on="service", how="left")
-results = px.add_priority_indices(results)
+results = results.merge(metrics, left_on="entity", right_on="service", how="left")
+
+# Add weighted indices: RI (Risk), SQI (Service Quality), EWI (Early Warning)
+results = px.add_priority_indices(
+    results,
+    volume_col="count",
+    growth_col="y_score",
+    severity_col="total_primary",
+    resolution_col="mean_duration",
+    recovery_col="secondary_to_primary_ratio",
+    # customize weights (default shown)
+    w_volume=0.4, w_growth=0.4, w_severity=0.2,
+    w_resolution=0.5, w_recovery=0.5,
+    w_risk=0.7, w_quality=0.3,
+)
+
+# Top priority entities
+top_risks = results.nlargest(10, "EWI")
 ```
 
 ## Features

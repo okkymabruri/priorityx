@@ -7,41 +7,138 @@
 ```python
 import priorityx as px
 
+# Default: volume × growth (single GLMM)
 results, stats = px.fit_priority_matrix(
     df,
-    entity_col,
-    timestamp_col,
-    count_col=None,
-    date_filter=None,
-    min_observations=3,
-    min_total_count=0,
-    decline_window_quarters=6,
-    temporal_granularity="yearly",
-    vcp_p=3.5,
-    fe_p=3.0
+    entity_col="service",
+    timestamp_col="date",
+    temporal_granularity="quarterly",
+)
+# Returns: entity, x_score, y_score, count, quadrant
+
+# Custom Y axis: volume × resolution_days (two GLMMs)
+results, stats = px.fit_priority_matrix(
+    df,
+    entity_col="service",
+    timestamp_col="date",
+    y_metric="resolution_days",
+)
+
+# Custom both axes with Gamma family for right-skewed data
+results, stats = px.fit_priority_matrix(
+    df,
+    entity_col="service",
+    timestamp_col="date",
+    x_metric="disputed_amount",
+    y_metric="paid_amount",
+    family="gamma",
 )
 ```
 
-Fits Poisson GLMM to classify entities into priority quadrants.
+Unified entry point for GLMM-based entity prioritization. Supports count-based (Poisson) and metric-based (Gaussian/Gamma) axes.
 
 **Parameters:**
-- `df`: pandas DataFrame
+- `df`: pandas DataFrame with one row per event
 - `entity_col`: Entity identifier column name
 - `timestamp_col`: Date column name
-- `count_col`: Count metric column (optional, defaults to row count)
-- `date_filter`: Date filter string (e.g., "< 2025-01-01")
-- `min_observations`: Minimum time periods required
+- `x_metric`: Optional metric column for X axis (None = count-based)
+- `y_metric`: Optional metric column for Y axis (None = count-based)
+- `x_effect`: Random effect for X score ("intercept" or "slope", default: "intercept")
+- `y_effect`: Random effect for Y score ("intercept" or "slope", default: "slope")
+- `family`: Distribution for continuous metrics ("gaussian" or "gamma", default: "gaussian")
+- `count_col`: Optional count column (default: row count per entity-period)
+- `date_filter`: Date filter string (e.g., "< 2025-01-01", ">= 2024-01-01")
+- `min_observations`: Minimum time periods required per entity
 - `min_total_count`: Minimum total count threshold
 - `decline_window_quarters`: Filter entities inactive >N quarters
-- `temporal_granularity`: "yearly", "quarterly", or "semiannual"
+- `temporal_granularity`: "yearly", "quarterly", "semiannual", or "monthly"
 - `vcp_p`: Random effects prior scale (default: 3.5)
 - `fe_p`: Fixed effects prior scale (default: 3.0)
 
 **Returns:**
-- `results`: DataFrame with entity, Random_Intercept, Random_Slope, count, quadrant
+- `results`: DataFrame with `entity`, `x_score`, `y_score`, `count`, `quadrant`
 - `stats`: Dictionary with model statistics
 
+**Family Selection:**
+- `"gaussian"` (default): Works for any data, robust for entity ranking
+- `"gamma"`: Use for right-skewed positive data (durations, monetary amounts)
+
 > **Reproducibility:** set the environment variable `PRIORITYX_GLMM_SEED` or call `set_glmm_random_seed(value)` before invoking `fit_priority_matrix` to obtain deterministic variational Bayes estimates.
+
+---
+
+## Metrics Functions
+
+### aggregate_entity_metrics
+
+```python
+import priorityx as px
+
+metrics = px.aggregate_entity_metrics(
+    df,
+    entity_col="service",
+    duration_start_col="opened_at",
+    duration_end_col="closed_at",
+    primary_col="exposure",
+    secondary_col="recovery",
+)
+# Returns: entity, mean_duration, total_primary, total_secondary, secondary_to_primary_ratio
+```
+
+Computes per-entity aggregated metrics for enrichment.
+
+### add_priority_indices
+
+```python
+import priorityx as px
+
+enriched = px.add_priority_indices(
+    results,
+    volume_col="count",
+    growth_col="y_score",
+    severity_col="total_primary",
+    resolution_col="mean_duration",
+    recovery_col="secondary_to_primary_ratio",
+    # Weights (defaults shown)
+    w_volume=0.4, w_growth=0.4, w_severity=0.2,
+    w_resolution=0.5, w_recovery=0.5,
+    w_risk=0.7, w_quality=0.3,
+)
+```
+
+Adds composite risk indices to enriched entity data.
+
+**Output columns:**
+- `z_volume`, `z_growth`, `z_severity`: Z-scored risk components
+- `z_neg_resolution`, `z_recovery`: Z-scored quality components
+- `RI`: Risk Index = weighted sum of z_volume, z_growth, z_severity
+- `SQI`: Service Quality Index = weighted sum of z_neg_resolution, z_recovery
+- `EWI`: Early Warning Index = w_risk × RI + w_quality × (-SQI)
+
+**Usage:**
+```python
+# Top priority entities
+top_risks = enriched.nlargest(10, "EWI")
+```
+
+### sensitivity_analysis
+
+```python
+import priorityx as px
+
+results = px.sensitivity_analysis(
+    df,
+    index_col="EWI",
+    entity_col="entity",
+    weight_ranges={
+        "w_risk": [0.6, 0.7, 0.8],
+        "w_quality": [0.2, 0.3, 0.4],
+    },
+    top_n=10,
+)
+```
+
+Tests ranking stability across weight variations.
 
 ---
 

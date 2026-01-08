@@ -76,6 +76,7 @@ def _fit_single_glmm(
     count_col: Optional[str] = None,
     x_effect: Literal["intercept", "slope"] = "intercept",
     y_effect: Literal["intercept", "slope"] = "slope",
+    family: Literal["gaussian", "gamma"] = "gaussian",
     date_filter: Optional[str] = None,
     min_observations: int = 3,
     min_total_count: int = 0,
@@ -388,15 +389,29 @@ def _fit_single_glmm(
     }
 
     if metric_col:
-        # Gaussian Bayesian mixed model for continuous metrics. We reuse
-        # the same random-effects structure as for Poisson counts but
-        # with a Gaussian family. Depending on statsmodels version, we
-        # fall back from variational Bayes to MAP or MLE.
+        # Select family for continuous metrics
+        if family == "gamma":
+            # Gamma requires strictly positive values
+            if (df_prepared["metric"] <= 0).any():
+                n_invalid = (df_prepared["metric"] <= 0).sum()
+                if verbose:
+                    print(f"  Warning: {n_invalid} non-positive values found, filtering for Gamma family")
+                df_prepared = df_prepared[df_prepared["metric"] > 0]
+            sm_family = sm.families.Gamma(link=sm.families.links.Log())
+            family_name = "Gamma"
+        else:
+            sm_family = sm.families.Gaussian()
+            family_name = "Gaussian"
+
+        # Bayesian mixed model for continuous metrics. We reuse
+        # the same random-effects structure as for Poisson counts.
+        # Depending on statsmodels version, we fall back from
+        # variational Bayes to MAP or MLE.
         glmm_model = _BayesMixedGLM.from_formula(
             formula,
             random_formulas,
             df_prepared,
-            family=sm.families.Gaussian(),
+            family=sm_family,
             vcp_p=vcp_p,
             fe_p=fe_p,
         )
@@ -416,15 +431,15 @@ def _fit_single_glmm(
         _apply_random_seed()
         try:
             glmm_result = glmm_model.fit_vb()
-            model_method = "GaussianVB"
+            model_method = f"{family_name}VB"
         except AttributeError:
             # Older statsmodels may not expose fit_vb on _BayesMixedGLM
             try:
                 glmm_result = glmm_model.fit_map()
-                model_method = "GaussianMAP"
+                model_method = f"{family_name}MAP"
             except AttributeError:
                 glmm_result = glmm_model.fit()
-                model_method = "GaussianMLE"
+                model_method = f"{family_name}MLE"
 
         intercepts_dict, slopes_dict = _extract_random_effects(glmm_model, glmm_result)
     else:
@@ -544,6 +559,7 @@ def _fit_dual_glmm(
     y_metric: str,
     x_effect: Literal["intercept", "slope"] = "intercept",
     y_effect: Literal["intercept", "slope"] = "intercept",
+    family: Literal["gaussian", "gamma"] = "gaussian",
     date_filter: Optional[str] = None,
     min_observations: int = 3,
     min_total_count: int = 0,
@@ -569,6 +585,7 @@ def _fit_dual_glmm(
         count_col=None,
         x_effect=x_effect,
         y_effect=x_effect,  # same effect for both since we only use x_score
+        family=family,
         date_filter=date_filter,
         min_observations=min_observations,
         min_total_count=min_total_count,
@@ -589,6 +606,7 @@ def _fit_dual_glmm(
         count_col=None,
         x_effect=y_effect,  # use y_effect for both since we only use x_score
         y_effect=y_effect,
+        family=family,
         date_filter=date_filter,
         min_observations=min_observations,
         min_total_count=min_total_count,
@@ -639,6 +657,7 @@ def fit_priority_matrix(
     y_metric: Optional[str] = None,
     x_effect: Literal["intercept", "slope"] = "intercept",
     y_effect: Literal["intercept", "slope"] = "slope",
+    family: Literal["gaussian", "gamma"] = "gaussian",
     # Existing params unchanged
     count_col: Optional[str] = None,
     date_filter: Optional[str] = None,
@@ -670,6 +689,11 @@ def fit_priority_matrix(
         y_metric: Optional metric column for Y axis. If None, uses count-based GLMM.
         x_effect: Which random effect to use for X score ("intercept" or "slope").
         y_effect: Which random effect to use for Y score ("intercept" or "slope").
+        family: Distribution family for continuous metrics ("gaussian" or "gamma").
+            - "gaussian" (default): Works for any data, robust for ranking.
+            - "gamma": Use for right-skewed positive data (durations, amounts).
+            Note: Only applies when x_metric or y_metric is specified.
+            Count-based axes always use Poisson.
 
         count_col: Optional count column (default: row count per entity-period).
         date_filter: Date filter (e.g., "< 2025-01-01", ">= 2024-01-01").
@@ -728,6 +752,7 @@ def fit_priority_matrix(
             count_col=count_col,
             x_effect=x_effect,
             y_effect=y_effect,
+            family=family,
             date_filter=date_filter,
             min_observations=min_observations,
             min_total_count=min_total_count,
@@ -747,6 +772,7 @@ def fit_priority_matrix(
             y_metric=y_metric,
             x_effect=x_effect,
             y_effect=y_effect,
+            family=family,
             date_filter=date_filter,
             min_observations=min_observations,
             min_total_count=min_total_count,

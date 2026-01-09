@@ -30,6 +30,8 @@ def plot_entity_trajectories(
     csv_dir: Optional[str] = "results/csv",
     temporal_granularity: str = "quarterly",
     close_fig: bool = False,
+    legend_loc: str = "lower right",
+    show_legend: bool = True,
 ) -> plt.Figure:
     """
     Visualize entity trajectories through priority space.
@@ -52,6 +54,8 @@ def plot_entity_trajectories(
         csv_dir: Output directory for CSV files
         temporal_granularity: Time granularity for file naming
         close_fig: Close the figure before returning (set True if you see duplicate inline renders)
+        legend_loc: Legend position (default: "lower right")
+        show_legend: Whether to show the quadrant legend (default: True)
 
     Returns:
         Matplotlib figure
@@ -220,29 +224,95 @@ def plot_entity_trajectories(
 
     # quadrant dividers will be added later with improved styling
 
-    # add quadrant labels
-    xlim = ax.get_xlim()
-    ylim = ax.get_ylim()
-
-    quadrant_positions = {
-        "Q1": (xlim[1] * 0.85, ylim[1] * 0.85),
-        "Q2": (xlim[0] * 0.85, ylim[1] * 0.85),
-        "Q3": (xlim[0] * 0.85, ylim[0] * 0.85),
-        "Q4": (xlim[1] * 0.85, ylim[0] * 0.85),
+    # add quadrant labels using axes transform (fixed position like matrix.py)
+    quadrant_centers_axes = {
+        "Q1": (0.78, 0.78),
+        "Q2": (0.22, 0.78),
+        "Q3": (0.22, 0.22),
+        "Q4": (0.78, 0.22),
     }
 
-    for quadrant, (x_pos, y_pos) in quadrant_positions.items():
+    # offset quadrant labels to avoid legend overlap (move both labels in same row together)
+    if show_legend:
+        legend_loc_norm = str(legend_loc).strip().lower()
+        if legend_loc_norm in {"lower right", "lower-right", "bottom right", "bottom-right"}:
+            # move both bottom labels up together to stay aligned
+            quadrant_centers_axes["Q3"] = (0.22, 0.35)
+            quadrant_centers_axes["Q4"] = (0.78, 0.35)
+        elif legend_loc_norm in {"lower left", "lower-left", "bottom left", "bottom-left"}:
+            # move both bottom labels up together to stay aligned
+            quadrant_centers_axes["Q3"] = (0.22, 0.35)
+            quadrant_centers_axes["Q4"] = (0.78, 0.35)
+        elif legend_loc_norm in {"upper left", "upper-left", "top left", "top-left"}:
+            # move both top labels down together to stay aligned
+            quadrant_centers_axes["Q1"] = (0.78, 0.65)
+            quadrant_centers_axes["Q2"] = (0.22, 0.65)
+        elif legend_loc_norm in {"upper right", "upper-right", "top right", "top-right"}:
+            # move both top labels down together to stay aligned
+            quadrant_centers_axes["Q1"] = (0.78, 0.65)
+            quadrant_centers_axes["Q2"] = (0.22, 0.65)
+
+    quadrant_label_fontsize = 15
+    quadrant_code_fontsize = 21  # larger for Q# code
+
+    for quadrant, (cx, cy) in quadrant_centers_axes.items():
+        label = quadrant_display[quadrant]
+        # split into Q# code and description
+        desc = label
+        if label.startswith(f"{quadrant} "):
+            desc = label[len(quadrant) + 1:]
+
+        bbox = {
+            "facecolor": "white",
+            "alpha": 0.35,
+            "edgecolor": "none",
+            "boxstyle": "round,pad=0.2",
+        }
+
+        # invisible sizing text for shared bbox
         ax.text(
-            x_pos,
-            y_pos,
-            quadrant_display[quadrant],
+            cx,
+            cy,
+            f"{quadrant}\n{desc}",
+            transform=ax.transAxes,
             ha="center",
             va="center",
-            fontsize=15,
-            color="gray",
-            alpha=0.3,
-            fontweight="bold",
+            fontsize=quadrant_label_fontsize,
+            color="dimgray",
+            alpha=0.0,
             zorder=0,
+            fontweight="bold",
+            bbox=bbox,
+            linespacing=0.8,
+        )
+
+        # Q# code (larger)
+        ax.text(
+            cx,
+            cy,
+            quadrant,
+            transform=ax.transAxes,
+            ha="center",
+            va="bottom",
+            fontsize=quadrant_code_fontsize,
+            color="dimgray",
+            alpha=0.85,
+            zorder=1,
+            fontweight="bold",
+        )
+        # description (smaller)
+        ax.text(
+            cx,
+            cy,
+            desc,
+            transform=ax.transAxes,
+            ha="center",
+            va="top",
+            fontsize=quadrant_label_fontsize,
+            color="dimgray",
+            alpha=0.75,
+            zorder=1,
+            fontweight="bold",
         )
 
     # set labels - use readable names
@@ -265,27 +335,28 @@ def plot_entity_trajectories(
         ax.set_title(title, fontsize=17, fontweight="bold", pad=20)
 
     # add legend for quadrants
-    from matplotlib.lines import Line2D
+    if show_legend:
+        from matplotlib.lines import Line2D
 
-    quadrant_legend = [
-        Line2D(
-            [0],
-            [0],
-            color=colors[quadrant],
-            linewidth=3,
-            label=quadrant_display[quadrant],
+        quadrant_legend = [
+            Line2D(
+                [0],
+                [0],
+                color=colors[quadrant],
+                linewidth=3,
+                label=quadrant_display[quadrant],
+            )
+            for quadrant in ["Q1", "Q2", "Q3", "Q4"]
+        ]
+        legend_fontsize = 15
+        ax.legend(
+            handles=quadrant_legend,
+            loc=legend_loc,
+            frameon=False,
+            fontsize=legend_fontsize,
+            title="Quadrants",
+            title_fontsize=legend_fontsize,
         )
-        for quadrant in ["Q1", "Q2", "Q3", "Q4"]
-    ]
-    legend_fontsize = 15
-    ax.legend(
-        handles=quadrant_legend,
-        loc="upper left",
-        frameon=False,
-        fontsize=legend_fontsize,
-        title="Quadrants",
-        title_fontsize=legend_fontsize,
-    )
 
     # remove plot borders for cleaner look
     ax.spines["top"].set_visible(False)

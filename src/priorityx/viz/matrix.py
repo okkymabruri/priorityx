@@ -232,17 +232,25 @@ def plot_priority_matrix(
         }
 
         # Only offset quadrant labels to avoid the legend when the legend is
-        # actually being rendered.
+        # actually being rendered. Move both labels in same row together to stay aligned.
         if show_legend:
             legend_loc_norm = str(legend_loc).strip().lower()
             if legend_loc_norm in {"lower right", "lower-right", "bottom right", "bottom-right"}:
-                quadrant_centers_axes["Q4"] = (0.60, 0.18)
+                # move both bottom labels up together
+                quadrant_centers_axes["Q3"] = (0.22, 0.35)
+                quadrant_centers_axes["Q4"] = (0.78, 0.35)
             elif legend_loc_norm in {"lower left", "lower-left", "bottom left", "bottom-left"}:
-                quadrant_centers_axes["Q3"] = (0.40, 0.18)
+                # move both bottom labels up together
+                quadrant_centers_axes["Q3"] = (0.22, 0.35)
+                quadrant_centers_axes["Q4"] = (0.78, 0.35)
             elif legend_loc_norm in {"upper left", "upper-left", "top left", "top-left"}:
-                quadrant_centers_axes["Q2"] = (0.40, 0.82)
+                # move both top labels down together
+                quadrant_centers_axes["Q1"] = (0.78, 0.65)
+                quadrant_centers_axes["Q2"] = (0.22, 0.65)
             elif legend_loc_norm in {"upper right", "upper-right", "top right", "top-right"}:
-                quadrant_centers_axes["Q1"] = (0.60, 0.82)
+                # move both top labels down together
+                quadrant_centers_axes["Q1"] = (0.78, 0.65)
+                quadrant_centers_axes["Q2"] = (0.22, 0.65)
 
         code_fontsize = max(1, int(quadrant_label_fontsize) + int(quadrant_code_fontsize_delta))
 

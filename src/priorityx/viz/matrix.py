@@ -47,6 +47,8 @@ def plot_priority_matrix(
     save_csv: bool = False,
     plot_dir: str = "results/plot",
     csv_dir: str = "results/csv",
+    plot_filename: Optional[str] = None,
+    csv_filename: Optional[str] = None,
     temporal_granularity: str = "quarterly",
     close_fig: bool = False,
     x_label: Optional[str] = None,
@@ -431,14 +433,17 @@ def plot_priority_matrix(
         from datetime import datetime
 
         os.makedirs(plot_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d")
-        granularity_suffix = {
-            "quarterly": "Q",
-            "yearly": "Y",
-            "semiannual": "S",
-            "monthly": "M",
-        }.get(temporal_granularity, "Q")
-        save_path = f"{plot_dir}/priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
+        if plot_filename:
+            save_path = os.path.join(plot_dir, plot_filename)
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d")
+            granularity_suffix = {
+                "quarterly": "Q",
+                "yearly": "Y",
+                "semiannual": "S",
+                "monthly": "M",
+            }.get(temporal_granularity, "Q")
+            save_path = f"{plot_dir}/priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
 
         plt.savefig(save_path, dpi=300, bbox_inches="tight", format="png")
         print(f"Plot saved: {save_path}")
@@ -449,14 +454,19 @@ def plot_priority_matrix(
         from datetime import datetime
 
         os.makedirs(csv_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d")
-        granularity_suffix = {
-            "quarterly": "Q",
-            "yearly": "Y",
-            "semiannual": "S",
-            "monthly": "M",
-        }.get(temporal_granularity, "Q")
-        csv_path = f"{csv_dir}/priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.csv"
+        if csv_filename:
+            csv_path = os.path.join(csv_dir, csv_filename)
+            if not csv_path.lower().endswith(".csv"):
+                csv_path = f"{csv_path}.csv"
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d")
+            granularity_suffix = {
+                "quarterly": "Q",
+                "yearly": "Y",
+                "semiannual": "S",
+                "monthly": "M",
+            }.get(temporal_granularity, "Q")
+            csv_path = f"{csv_dir}/priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.csv"
 
         # save key columns, plus any custom X/Y columns if present
         cols_to_save = [

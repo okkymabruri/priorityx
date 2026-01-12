@@ -28,6 +28,8 @@ def plot_entity_trajectories(
     save_csv: bool = False,
     plot_dir: str = "results/plot",
     csv_dir: Optional[str] = "results/csv",
+    plot_filename: Optional[str] = None,
+    csv_filename: Optional[str] = None,
     temporal_granularity: str = "quarterly",
     close_fig: bool = False,
     legend_loc: str = "lower right",
@@ -379,14 +381,20 @@ def plot_entity_trajectories(
         from datetime import datetime
 
         os.makedirs(plot_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d")
-        granularity_suffix = {
-            "quarterly": "Q",
-            "yearly": "Y",
-            "semiannual": "S",
-            "monthly": "M",
-        }.get(temporal_granularity, "Q")
-        plot_path = f"{plot_dir}/trajectories-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
+        if plot_filename:
+            plot_path = os.path.join(plot_dir, plot_filename)
+            if not plot_path.lower().endswith(".png"):
+                plot_path = f"{plot_path}.png"
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d")
+            granularity_suffix = {
+                "quarterly": "Q",
+                "yearly": "Y",
+                "semiannual": "S",
+                "monthly": "M",
+            }.get(temporal_granularity, "Q")
+            entity_slug = entity_name.lower().replace(" ", "_")
+            plot_path = f"{plot_dir}/trajectories-{entity_slug}-{granularity_suffix}-{timestamp}.png"
         plt.savefig(plot_path, dpi=300, bbox_inches="tight", format="png")
         print(f"Entity trajectory plot saved: {plot_path}")
 
@@ -395,13 +403,20 @@ def plot_entity_trajectories(
         # full movement_df. The full movement data remains available in
         # the movement CSVs.
         target_dir = csv_dir if csv_dir else f"{plot_dir}/../results"
-        csv_path = save_dataframe_to_csv(
-            df_plot,
-            artifact="trajectories",
-            entity_name=entity_name,
-            temporal_granularity=temporal_granularity,
-            output_dir=target_dir,
-        )
+        if csv_filename:
+            os.makedirs(target_dir, exist_ok=True)
+            csv_path = os.path.join(target_dir, csv_filename)
+            if not csv_path.lower().endswith(".csv"):
+                csv_path = f"{csv_path}.csv"
+            df_plot.to_csv(csv_path, index=False)
+        else:
+            csv_path = save_dataframe_to_csv(
+                df_plot,
+                artifact="trajectories",
+                entity_name=entity_name,
+                temporal_granularity=temporal_granularity,
+                output_dir=target_dir,
+            )
         print(f"Trajectories CSV saved: {csv_path}")
 
     if close_fig:

@@ -34,6 +34,8 @@ def plot_transition_timeline(
     save_csv: bool = False,
     plot_dir: str = "results/plot",
     csv_dir: str = "results/csv",
+    plot_filename: Optional[str] = None,
+    csv_filename: Optional[str] = None,
     temporal_granularity: str = "quarterly",
     movement_df: Optional[pd.DataFrame] = None,
     close_fig: bool = False,
@@ -433,14 +435,20 @@ def plot_transition_timeline(
         from datetime import datetime
 
         os.makedirs(plot_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d")
-        granularity_suffix = {
-            "quarterly": "Q",
-            "yearly": "Y",
-            "semiannual": "S",
-            "monthly": "M",
-        }.get(temporal_granularity, "Q")
-        plot_path = f"{plot_dir}/transition_timeline-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
+        if plot_filename:
+            plot_path = os.path.join(plot_dir, plot_filename)
+            if not plot_path.lower().endswith(".png"):
+                plot_path = f"{plot_path}.png"
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d")
+            granularity_suffix = {
+                "quarterly": "Q",
+                "yearly": "Y",
+                "semiannual": "S",
+                "monthly": "M",
+            }.get(temporal_granularity, "Q")
+            entity_slug = entity_name.lower().replace(" ", "_")
+            plot_path = f"{plot_dir}/transition_timeline-{entity_slug}-{granularity_suffix}-{timestamp}.png"
         plt.savefig(plot_path, dpi=300, bbox_inches="tight", format="png")
         print(f"Transition plot saved: {plot_path}")
 
@@ -450,14 +458,20 @@ def plot_transition_timeline(
         from datetime import datetime
 
         os.makedirs(csv_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d")
-        granularity_suffix = {
-            "quarterly": "Q",
-            "yearly": "Y",
-            "semiannual": "S",
-            "monthly": "M",
-        }.get(temporal_granularity, "Q")
-        csv_path = f"{csv_dir}/transitions-{entity_name.lower()}-{granularity_suffix}-{timestamp}.csv"
+        if csv_filename:
+            csv_path = os.path.join(csv_dir, csv_filename)
+            if not csv_path.lower().endswith(".csv"):
+                csv_path = f"{csv_path}.csv"
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d")
+            granularity_suffix = {
+                "quarterly": "Q",
+                "yearly": "Y",
+                "semiannual": "S",
+                "monthly": "M",
+            }.get(temporal_granularity, "Q")
+            entity_slug = entity_name.lower().replace(" ", "_")
+            csv_path = f"{csv_dir}/transitions-{entity_slug}-{granularity_suffix}-{timestamp}.csv"
 
         df_to_save = df
         # For monthly outputs, expose a clearer ``transition_month`` label

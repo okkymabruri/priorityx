@@ -38,6 +38,7 @@ results, stats = px.fit_priority_matrix(
 Unified entry point for GLMM-based entity prioritization. Supports count-based (Poisson) and metric-based (Gaussian/Gamma) axes.
 
 **Parameters:**
+
 - `df`: pandas DataFrame with one row per event
 - `entity_col`: Entity identifier column name
 - `timestamp_col`: Date column name
@@ -56,10 +57,12 @@ Unified entry point for GLMM-based entity prioritization. Supports count-based (
 - `fe_p`: Fixed effects prior scale (default: 3.0)
 
 **Returns:**
+
 - `results`: DataFrame with `entity`, `x_score`, `y_score`, `count`, `quadrant`
 - `stats`: Dictionary with model statistics
 
 **Family Selection:**
+
 - `"gaussian"` (default): Works for any data, robust for entity ranking
 - `"gamma"`: Use for right-skewed positive data (durations, monetary amounts)
 
@@ -109,6 +112,7 @@ enriched = px.add_priority_indices(
 Adds composite risk indices to enriched entity data.
 
 **Output columns:**
+
 - `z_volume`, `z_growth`, `z_severity`: Z-scored risk components
 - `z_neg_resolution`, `z_recovery`: Z-scored quality components
 - `RI`: Risk Index = weighted sum of z_volume, z_growth, z_severity
@@ -165,6 +169,7 @@ movement, meta = px.track_cumulative_movement(
 Tracks entity movement through priority quadrants over time.
 
 **Returns:**
+
 - `movement`: DataFrame with quarterly X/Y positions
 - `meta`: Dictionary with tracking metadata
 
@@ -182,6 +187,7 @@ transitions = px.extract_transitions(
 Extracts quadrant transitions from movement data.
 
 **Returns:**
+
 - DataFrame with transition details and risk levels
 
 ### extract_transition_drivers
@@ -206,6 +212,7 @@ analysis = px.extract_transition_drivers(
 Analyzes root causes of a quadrant transition.
 
 **Parameters:**
+
 - `movement_df`: Output from track_cumulative_movement()
 - `df_raw`: Raw event data (pandas DataFrame)
 - `entity_name`: Entity to analyze
@@ -218,6 +225,7 @@ Analyzes root causes of a quadrant transition.
 - `min_subcategory_delta`: Minimum delta required for subcategory inclusion (default: 1)
 
 **Returns:**
+
 - Dictionary with:
   - `transition`: includes risk-level change and `is_concerning` flag
   - `magnitude`: cumulative deltas plus period-specific weekly averages and complaint counts
@@ -244,6 +252,7 @@ priority, reason, spike_axis = classify_priority(
 Classifies supervisory priority (1=Critical, 2=Investigate, 3=Monitor, 4=Low).
 
 **Returns:**
+
 - Tuple of (priority, reason, spike_axis)
 
 ---
@@ -333,4 +342,5 @@ display_transition_drivers(analysis)
 Prints transition driver analysis in human-readable format.
 
 **Parameters:**
+
 - `analysis`: Output from extract_transition_drivers()

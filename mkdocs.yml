@@ -1,0 +1,40 @@
+site_name: PriorityX
+site_description: Priority matrix analysis using GLMM for consumer complaint prioritization
+site_url: https://okkymabruri.github.io/priorityx
+repo_url: https://github.com/okkymabruri/priorityx
+repo_name: okkymabruri/priorityx
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Quick Start: quickstart.md
+  - API Reference: api-reference.md
+  - Methodology: methodology.md
+  - Priority Classification: priority_classification.md
+  - Output Naming: output_naming.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - tables
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/okkymabruri/priorityx

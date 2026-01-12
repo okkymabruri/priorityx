@@ -1,4 +1,4 @@
-% PriorityX Output Naming
+# PriorityX Output Naming
 
 This note documents where PriorityX writes plots/CSVs and how filenames
 are constructed. It is meant as a quick reference when wiring outputs
@@ -8,11 +8,10 @@ into EWS pipelines or BI tools.
 
 ## Directories
 
-By default, PriorityX writes artifacts under the current working
-directory, using two main folders:
+By default, PriorityX writes artifacts under the current working directory, using two main folders:
 
-- `results/plot/` – PNG plots
-- `results/csv/` – CSV tables (movement, matrices, transitions, etc.)
+- `results/plot/` — PNG plots
+- `results/csv/` — CSV tables (movement, matrices, transitions, etc.)
 
 You can override these via the `plot_dir` / `csv_dir` / `output_dir`
 arguments on the plotting and helper functions.

@@ -1,0 +1,59 @@
+# Changelog
+
+Only major releases (v0.x.0) are listed.
+
+---
+
+## v0.4.0 (2025-01)
+
+**Unified API with Axis Metrics**
+
+- Introduced `x_metric` / `y_metric` parameters to `fit_priority_matrix()` for flexible axis definitions beyond default volume/growth
+- Added `x_score` / `y_score` coordinate-based quadrant classification (replaces Random_Intercept/Random_Slope naming in outputs)
+- Added Gamma family support for continuous GLMM (e.g., duration or amount metrics)
+- Gaussian GLMM support for metric-based axes
+- Improved quadrant label rendering with configurable legend position (`legend_loc`, `show_legend`)
+- Row-aligned quadrant label offsetting to avoid legend overlap
+
+---
+
+## v0.3.0 (2024-12)
+
+**Entity Metrics and Priority Indices**
+
+- Implemented `add_priority_indices()` for composite index calculation:
+  - **RI** (Risk Index): volume + growth + severity
+  - **SQI** (Service Quality Index): resolution speed + recovery rate
+  - **EWI** (Early Warning Index): blends RI and SQI for prioritization
+- Added `aggregate_entity_metrics()` helper for per-entity metric aggregation
+- Added `sensitivity_analysis()` for weight stability testing
+- Monthly granularity support (beta) in GLMM and visualizations
+- Unified `px.*` namespace imports pattern
+
+---
+
+## v0.2.0 (2024-11)
+
+**Transition Tracking and Visualization**
+
+- Implemented `track_cumulative_movement()` for entity trajectory tracking
+- Added `extract_transitions()` for quadrant movement detection
+- Transition timeline visualization with priority-based coloring (Crisis/Investigate/Monitor/Low)
+- Spike markers (`*X`, `*Y`, `*XY`) for volume/growth spikes
+- Deterministic seeding via `PRIORITYX_GLMM_SEED` for reproducible GLMM fits
+- `plot_entity_trajectories()` for movement path visualization
+- Transition driver analysis (experimental)
+
+---
+
+## v0.1.0 (2024-10)
+
+**Initial Release**
+
+- Core GLMM estimation with Poisson mixed effects (statsmodels backend)
+- `fit_priority_matrix()` main API for entity prioritization
+- Quadrant classification (Q1-Q4) based on volume and growth
+- Priority matrix scatter plot visualization
+- Quarterly, yearly, and semiannual temporal granularity
+- Date filtering and minimum observation thresholds
+- CSV and plot export with configurable output directories

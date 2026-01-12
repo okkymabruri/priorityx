@@ -39,7 +39,7 @@ movement, meta = px.track_cumulative_movement(
     df,
     entity_col="service",
     timestamp_col="date",
-    quarters=["2024-01-01", "2025-01-01"]
+    quarters=["2024-01-01", "2025-01-01"],
 )
 
 # detect transitions
@@ -48,29 +48,23 @@ transitions = px.extract_transitions(movement)
 # visualize transitions
 px.plot_transition_timeline(transitions, entity_name="Service", save_plot=True)
 
-# analyze drivers for specific transition
-if not transitions.empty:
-    first_transition = transitions.iloc[0]
-    analysis = px.extract_transition_drivers(
-        movement_df=movement,
-        df_raw=df,
-        entity_name=first_transition["entity"],
-        quarter_from=first_transition["from_quarter"],
-        quarter_to=first_transition["transition_quarter"],
-        entity_col="service",
-        timestamp_col="date",
-        top_n_subcategories=5,
-        min_subcategory_delta=2
-    )
-    px.display_transition_drivers(analysis)
-
-    # subcategory columns (e.g., severity/product/topic) are auto-detected
-    # when not provided; pass subcategory_cols=[...] to override.
+# analyze drivers for a specific transition
+analysis = px.extract_transition_drivers(
+    movement_df=movement,
+    df_raw=df,
+    entity_name="Service A",
+    quarter_from="2024-Q2",
+    quarter_to="2024-Q3",
+    entity_col="service",
+    timestamp_col="date",
+)
+px.display_transition_drivers(analysis)
 ```
 
 ## Data Requirements
 
 Your data needs:
+
 - Entity identifier column (e.g., service, component, department)
 - Timestamp column (Date or Datetime type)
 - Optional: Count metric column (defaults to row count)
@@ -78,8 +72,9 @@ Your data needs:
 ## Output
 
 By default, outputs saved to:
-- **`plot/`** - All PNG visualizations (priority matrix, transitions, trajectories)
-- **`results/`** - All CSV data files (entity scores, transitions, movement tracking)
+
+- **`plot/`** — All PNG visualizations (priority matrix, transitions, trajectories)
+- **`results/`** — All CSV data files (entity scores, transitions, movement tracking)
 
 You can customize output directories using the `output_dir` parameter in visualization functions.
 

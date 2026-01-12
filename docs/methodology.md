@@ -15,6 +15,7 @@ count ~ time + seasonal_effects + (1 + time | entity)
 ```
 
 **Components:**
+
 - Fixed effects: Overall time trend + seasonal dummies (quarterly/semiannual)
 - Random intercepts: Entity-specific baseline volume
 - Random slopes: Entity-specific growth rates
@@ -22,6 +23,7 @@ count ~ time + seasonal_effects + (1 + time | entity)
 **Estimation:** Variational Bayes (VB) for posterior mean
 
 **Priors:**
+
 - Random effects: vcp_p = 3.5 (relaxed for boundary behavior)
 - Fixed effects: fe_p = 3.0
 
@@ -68,26 +70,31 @@ Priority tiers applied in the transition timeline build on these quadrants with 
 ### Transition Detection
 
 **Cross-quadrant transitions:**
+
 - Q3→Q2→Q1: Escalation path
 - Q1→Q4, Q2→Q3: De-escalation
 
 **Within-quadrant changes:**
+
 - Y-axis surge > 1.0: Dramatic acceleration
 - X-axis surge > 1.0: Major volume increase
 
 ## Data Filters
 
 **Sparse entities:**
+
 - min_total_count: Filter entities below count threshold
 - min_observations: Filter entities with insufficient time periods
 
 **Stale entities:**
+
 - decline_window_quarters: Filter entities inactive >N quarters
 - Prevents contamination from historical data
 
 ## Validation
 
 Approach validated on regulatory monitoring data:
+
 - 95.7% accuracy vs baseline methods
 - 1-3 quarter earlier detection of escalating entities
 - Reduced false oscillations for smooth growth patterns

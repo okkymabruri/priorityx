@@ -15,6 +15,21 @@ Only major releases (v0.x.0) are listed.
 - Improved quadrant label rendering with configurable legend position (`legend_loc`, `show_legend`)
 - Row-aligned quadrant label offsetting to avoid legend overlap
 
+**Trajectory Auto-Selection**
+
+- Added `highlight_top_n` parameter to `plot_entity_trajectories()` for automatic entity selection
+- Added `highlight_by` parameter: `"trajectory_distance"` (euclidean path) or `"total_movement"` (manhattan)
+- Added `recent_periods` parameter to limit trajectory window to last N periods
+
+**Enhanced Driver Analysis**
+
+- Added `numeric_cols` parameter to `extract_transition_drivers()` for amount/duration breakdowns
+  - Explicit bins: `{"amount": [0, 1e6, 5e6, 10e6]}`
+  - Auto quantiles: `{"duration": 4}` (4 bins)
+- Renamed `quarter_from`/`quarter_to` to `period_from`/`period_to` (backwards compatible)
+- Renamed `top_n_subcategories` to `top_n`, `min_subcategory_delta` to `min_delta` (backwards compatible)
+- Added `save_txt`, `txt_path`, `txt_mode` parameters to `display_transition_drivers()` for file output
+
 ---
 
 ## v0.3.0 (2024-12)

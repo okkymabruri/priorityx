@@ -48,17 +48,29 @@ transitions = px.extract_transitions(movement)
 # visualize transitions
 px.plot_transition_timeline(transitions, entity_name="Service", save_plot=True)
 
+# plot trajectories (auto-select top 4 movers from last 6 quarters)
+px.plot_entity_trajectories(
+    movement,
+    entity_name="service",
+    highlight_top_n=4,
+    highlight_by="trajectory_distance",
+    recent_periods=6,
+    save_plot=True,
+)
+
 # analyze drivers for a specific transition
 analysis = px.extract_transition_drivers(
     movement_df=movement,
     df_raw=df,
     entity_name="Service A",
-    quarter_from="2024-Q2",
-    quarter_to="2024-Q3",
+    period_from="2024-Q2",
+    period_to="2024-Q3",
     entity_col="service",
     timestamp_col="date",
+    subcategory_cols=["category", "region"],
+    numeric_cols={"amount": [0, 1e6, 5e6, 10e6]},  # breakdown by amount bins
 )
-px.display_transition_drivers(analysis)
+px.display_transition_drivers(analysis, save_txt=True, txt_path="drivers.txt")
 ```
 
 ## Data Requirements

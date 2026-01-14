@@ -195,17 +195,32 @@ Extracts quadrant transitions from movement data.
 ```python
 import priorityx as px
 
+# Basic usage with categorical breakdowns
 analysis = px.extract_transition_drivers(
     movement_df,
     df_raw,
     entity_name="Service A",
-    quarter_from="2024-Q2",
-    quarter_to="2024-Q3",
+    period_from="2024-Q2",
+    period_to="2024-Q3",
     entity_col="service",
     timestamp_col="date",
-    subcategory_cols=["type", "category"],  # Optional override; auto-detected if omitted
-    top_n_subcategories=5,
-    min_subcategory_delta=2,
+    subcategory_cols=["type", "category"],  # categorical breakdowns
+)
+
+# With numeric column breakdowns (amounts, durations)
+analysis = px.extract_transition_drivers(
+    movement_df,
+    df_raw,
+    entity_name="Fintech - Pinjaman Online",
+    period_from="2024-Q3",
+    period_to="2024-Q4",
+    entity_col="product",
+    timestamp_col="date",
+    subcategory_cols=["region", "gender"],
+    numeric_cols={
+        "disputed_amount": [0, 1e6, 5e6, 10e6],  # explicit bin edges
+        "resolution_days": 4,                     # 4 quantile bins (auto)
+    },
 )
 ```
 
@@ -216,13 +231,16 @@ Analyzes root causes of a quadrant transition.
 - `movement_df`: Output from track_cumulative_movement()
 - `df_raw`: Raw event data (pandas DataFrame)
 - `entity_name`: Entity to analyze
-- `quarter_from`: Starting quarter (e.g., "2024-Q2")
-- `quarter_to`: Ending quarter (e.g., "2024-Q3")
+- `period_from`: Starting period (e.g., "2024-Q2", "2024-01")
+- `period_to`: Ending period (e.g., "2024-Q3", "2024-02")
 - `entity_col`: Entity column name
 - `timestamp_col`: Timestamp column name
-- `subcategory_cols`: Optional list of subcategory columns (auto-detected when omitted)
-- `top_n_subcategories`: Limit of subcategory drivers (default: 3)
-- `min_subcategory_delta`: Minimum delta required for subcategory inclusion (default: 1)
+- `subcategory_cols`: Optional list of categorical columns for breakdown (auto-detected when omitted)
+- `numeric_cols`: Optional dict of numeric columns with bin specs:
+  - List of floats: explicit bin edges (e.g., `[0, 1e6, 5e6, 10e6]`)
+  - Integer: number of quantile bins (e.g., `4` for quartiles)
+- `top_n`: Limit of drivers per column (default: 3)
+- `min_delta`: Minimum count delta for inclusion (default: 1)
 
 **Returns:**
 
@@ -230,7 +248,8 @@ Analyzes root causes of a quadrant transition.
   - `transition`: includes risk-level change and `is_concerning` flag
   - `magnitude`: cumulative deltas plus period-specific weekly averages and complaint counts
   - `spike_drivers`: summary notes aligned with spike indicators (`*X`, `*Y`, `*XY`)
-  - `subcategory_drivers`: per-column driver lists obeying the provided knobs
+  - `subcategory_drivers`: per-column driver lists for categorical columns
+  - `numeric_drivers`: per-column driver lists for numeric columns (with bin edges)
   - `priority`: priority tier, trigger reason, spike axis
   - `meta`: diagnostic flags (e.g., whether subcategory columns were auto-detected)
 
@@ -300,16 +319,46 @@ Creates timeline heatmap of transitions. Passing `movement_df` is required to co
 ```python
 import priorityx as px
 
+# Basic usage
 fig = px.plot_entity_trajectories(
     movement_df,
     entity_name="Entity",
     max_entities=10,
     save_plot=False,
-    output_dir="plot"
+    plot_dir="plot"
+)
+
+# Auto-select top movers (recommended)
+fig = px.plot_entity_trajectories(
+    movement_df,
+    entity_name="product",
+    highlight_top_n=4,                   # auto-select top 4 entities
+    highlight_by="trajectory_distance",  # by path length (or "total_movement")
+    recent_periods=6,                    # limit to last 6 periods
+    save_plot=True,
+    plot_dir="results/plot",
 )
 ```
 
 Creates trajectory plot showing entity paths through priority space.
+
+**Parameters:**
+
+- `movement_df`: Output from track_cumulative_movement()
+- `entity_name`: Label for entity type (e.g., "product", "service")
+- `max_entities`: Maximum entities to show (default: 10)
+- `highlight_entities`: List of specific entities to highlight
+- `highlight_top_n`: Auto-select top N entities by movement (overrides max_entities)
+- `highlight_by`: Selection method when using highlight_top_n:
+  - `"trajectory_distance"`: Euclidean path length (sum of sqrt(dx² + dy²))
+  - `"total_movement"`: Manhattan distance (sum of |dx| + |dy|)
+- `recent_periods`: Limit trajectory to last N periods (useful for long histories)
+- `temporal_granularity`: "quarterly", "monthly", etc.
+- `save_plot`: Save to file (default: False)
+- `save_csv`: Save trajectory data to CSV (default: False)
+- `plot_dir`: Output directory for plots
+- `csv_dir`: Output directory for CSVs
+- `close_fig`: Close figure after rendering (set True for Jupyter to avoid duplicates)
 
 ---
 
@@ -334,9 +383,18 @@ Prints formatted summaries of analysis results.
 ### display_transition_drivers
 
 ```python
-from priorityx.tracking.drivers import display_transition_drivers
+import priorityx as px
 
-display_transition_drivers(analysis)
+# Print to console
+px.display_transition_drivers(analysis)
+
+# Print and save to file
+px.display_transition_drivers(
+    analysis,
+    save_txt=True,
+    txt_path="driver_analysis.txt",
+    txt_mode="a",  # append (default) or "w" to overwrite
+)
 ```
 
 Prints transition driver analysis in human-readable format.
@@ -344,3 +402,6 @@ Prints transition driver analysis in human-readable format.
 **Parameters:**
 
 - `analysis`: Output from extract_transition_drivers()
+- `save_txt`: Save output to text file (default: False)
+- `txt_path`: Path for text file (required if save_txt=True)
+- `txt_mode`: File mode - "a" to append (default), "w" to overwrite

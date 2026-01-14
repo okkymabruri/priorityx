@@ -4,6 +4,7 @@ from typing import List, Optional, Tuple
 import warnings
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 from priorityx.core.quadrants import get_quadrant_label
@@ -34,6 +35,9 @@ def plot_entity_trajectories(
     close_fig: bool = False,
     legend_loc: str = "lower right",
     show_legend: bool = True,
+    highlight_top_n: Optional[int] = None,
+    highlight_by: str = "trajectory_distance",
+    recent_periods: Optional[int] = None,
 ) -> plt.Figure:
     """
     Visualize entity trajectories through priority space.
@@ -58,6 +62,10 @@ def plot_entity_trajectories(
         close_fig: Close the figure before returning (set True if you see duplicate inline renders)
         legend_loc: Legend position (default: "lower right")
         show_legend: Whether to show the quadrant legend (default: True)
+        highlight_top_n: Auto-select top N entities (overrides max_entities when set)
+        highlight_by: Selection method - "trajectory_distance" (euclidean path length)
+                     or "total_movement" (sum of |x| + |y| deltas). Default: "trajectory_distance"
+        recent_periods: Limit trajectory to last N periods (default: None = all periods)
 
     Returns:
         Matplotlib figure
@@ -98,13 +106,66 @@ def plot_entity_trajectories(
             ]
             movement_df = df_trim
 
+    # apply recent_periods filter
+    if recent_periods is not None and recent_periods > 0:
+        all_periods = sorted(movement_df[period_col].astype(str).unique().tolist())
+        if len(all_periods) > recent_periods:
+            window_start = all_periods[-recent_periods]
+            movement_df = movement_df[
+                movement_df[period_col].astype(str) >= window_start
+            ].copy()
+
     # select entities to plot
+    n_to_select = highlight_top_n if highlight_top_n else max_entities
+
     if highlight_entities:
         entities_to_plot = [
             e for e in highlight_entities if e in movement_df["entity"].values
         ]
+    elif highlight_top_n is not None and highlight_by == "trajectory_distance":
+        # calculate trajectory distance (euclidean path length)
+        df_sorted = movement_df.sort_values(["entity", period_col]).copy()
+        df_sorted["period_x"] = pd.to_numeric(df_sorted.get("period_x"), errors="coerce")
+        df_sorted["period_y"] = pd.to_numeric(df_sorted.get("period_y"), errors="coerce")
+        df_sorted["dx"] = df_sorted.groupby("entity")["period_x"].diff()
+        df_sorted["dy"] = df_sorted.groupby("entity")["period_y"].diff()
+        df_sorted["step_distance"] = np.sqrt(
+            df_sorted["dx"] ** 2 + df_sorted["dy"] ** 2
+        ).fillna(0)
+
+        dist_by_entity = (
+            df_sorted.groupby("entity", as_index=False)["step_distance"]
+            .sum()
+            .rename(columns={"step_distance": "trajectory_distance"})
+        )
+
+        # get volume for tiebreaker
+        vol_col = "cumulative_count" if "cumulative_count" in movement_df.columns else None
+        if vol_col:
+            last_period = movement_df.sort_values(period_col).groupby("entity").tail(1)
+            last_period[vol_col] = pd.to_numeric(
+                last_period.get(vol_col), errors="coerce"
+            ).fillna(0)
+            dist_by_entity = dist_by_entity.merge(
+                last_period[["entity", vol_col]], on="entity", how="left"
+            )
+            dist_by_entity[vol_col] = dist_by_entity[vol_col].fillna(0)
+            top_movers = dist_by_entity.sort_values(
+                ["trajectory_distance", vol_col], ascending=[False, False]
+            ).head(n_to_select)
+        else:
+            top_movers = dist_by_entity.nlargest(n_to_select, "trajectory_distance")
+
+        entities_to_plot = top_movers["entity"].tolist()
+
+        # fill with high-volume entities if not enough
+        if len(entities_to_plot) < n_to_select and vol_col:
+            remaining = dist_by_entity[
+                ~dist_by_entity["entity"].isin(entities_to_plot)
+            ].nlargest(n_to_select - len(entities_to_plot), vol_col)
+            entities_to_plot.extend(remaining["entity"].tolist())
     else:
-        # select entities with largest movements
+        # original logic: select entities with largest movements
         entity_movement = movement_df.groupby("entity").agg(
             {
                 "x_delta": lambda x: abs(x).sum(),
@@ -114,7 +175,7 @@ def plot_entity_trajectories(
         entity_movement["total_movement"] = (
             entity_movement["x_delta"] + entity_movement["y_delta"]
         )
-        top_movers = entity_movement.nlargest(max_entities, "total_movement")
+        top_movers = entity_movement.nlargest(n_to_select, "total_movement")
         entities_to_plot = top_movers.index.tolist()
 
     # filter movement data

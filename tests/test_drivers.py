@@ -241,3 +241,176 @@ def test_extract_transition_drivers_fallback_detection():
     assert meta["subcategory_columns_used"] == ["module"]
     assert meta["custom_driver_columns_loaded"] is False
     assert "module" in analysis["subcategory_drivers"]
+
+
+def test_extract_transition_drivers_numeric_cols():
+    """Test numeric column binning and driver extraction."""
+    import numpy as np
+
+    movement_data = pd.DataFrame(
+        {
+            "entity": ["Product X", "Product X"],
+            "quarter": ["2024-Q2", "2024-Q3"],
+            "period_quadrant": ["Q3", "Q1"],
+            "period_x": [-0.1, 0.3],
+            "period_y": [-0.1, 0.4],
+            "cumulative_count": [100, 200],
+        }
+    )
+
+    # create raw data with amount column
+    np.random.seed(42)
+    n_from = 30
+    n_to = 70
+
+    df_raw = pd.DataFrame(
+        {
+            "product": ["Product X"] * (n_from + n_to),
+            "date": (
+                list(pd.date_range("2024-01-15", periods=n_from, freq="D"))
+                + list(pd.date_range("2024-04-10", periods=n_to, freq="D"))
+            ),
+            "amount": (
+                list(np.random.uniform(0, 1e6, n_from))  # mostly low amounts in Q2
+                + list(np.random.uniform(5e6, 10e6, n_to))  # mostly high amounts in Q3
+            ),
+            "region": (
+                ["Jakarta"] * 15 + ["Surabaya"] * 15
+                + ["Jakarta"] * 50 + ["Bandung"] * 20
+            ),
+        }
+    )
+
+    analysis = extract_transition_drivers(
+        movement_df=movement_data,
+        df_raw=df_raw,
+        entity_name="Product X",
+        period_from="2024-Q2",
+        period_to="2024-Q3",
+        entity_col="product",
+        timestamp_col="date",
+        subcategory_cols=["region"],
+        numeric_cols={
+            "amount": [0, 1e6, 5e6, 10e6],  # explicit bins
+        },
+        top_n=3,
+    )
+
+    # verify structure
+    assert "subcategory_drivers" in analysis
+    assert "numeric_drivers" in analysis
+    assert "amount" in analysis["numeric_drivers"]
+
+    # verify numeric drivers have expected structure
+    amount_drivers = analysis["numeric_drivers"]["amount"]
+    assert "top_drivers" in amount_drivers
+    assert "top_n_explain_pct" in amount_drivers
+    assert "bin_edges" in amount_drivers
+
+    # verify bin edges match input
+    assert amount_drivers["bin_edges"] == [0, 1e6, 5e6, 10e6]
+
+    # verify top drivers have required fields
+    for driver in amount_drivers["top_drivers"]:
+        assert "bin" in driver
+        assert "count_from" in driver
+        assert "count_to" in driver
+        assert "delta" in driver
+        assert "percent_of_change" in driver
+
+    # verify meta includes numeric columns
+    assert "numeric_columns_used" in analysis["meta"]
+    assert "amount" in analysis["meta"]["numeric_columns_used"]
+
+
+def test_extract_transition_drivers_numeric_quantile_bins():
+    """Test numeric column with quantile bins (integer spec)."""
+    import numpy as np
+
+    movement_data = pd.DataFrame(
+        {
+            "entity": ["Service Y", "Service Y"],
+            "quarter": ["2024-Q2", "2024-Q3"],
+            "period_quadrant": ["Q3", "Q2"],
+            "period_x": [-0.2, 0.0],
+            "period_y": [-0.1, 0.2],
+            "cumulative_count": [50, 90],
+        }
+    )
+
+    np.random.seed(123)
+    n_from = 20
+    n_to = 40
+
+    df_raw = pd.DataFrame(
+        {
+            "service": ["Service Y"] * (n_from + n_to),
+            "date": (
+                list(pd.date_range("2024-01-15", periods=n_from, freq="D"))
+                + list(pd.date_range("2024-04-10", periods=n_to, freq="D"))
+            ),
+            "resolution_days": (
+                list(np.random.uniform(1, 10, n_from))
+                + list(np.random.uniform(5, 30, n_to))
+            ),
+        }
+    )
+
+    analysis = extract_transition_drivers(
+        movement_df=movement_data,
+        df_raw=df_raw,
+        entity_name="Service Y",
+        period_from="2024-Q2",
+        period_to="2024-Q3",
+        entity_col="service",
+        timestamp_col="date",
+        numeric_cols={
+            "resolution_days": 4,  # 4 quantile bins
+        },
+    )
+
+    assert "numeric_drivers" in analysis
+    assert "resolution_days" in analysis["numeric_drivers"]
+
+    res_drivers = analysis["numeric_drivers"]["resolution_days"]
+    assert len(res_drivers["bin_edges"]) == 5  # 4 bins = 5 edges
+
+
+def test_extract_transition_drivers_backwards_compat():
+    """Test that old parameter names still work."""
+    movement_data = pd.DataFrame(
+        {
+            "entity": ["Service Z", "Service Z"],
+            "quarter": ["2024-Q2", "2024-Q3"],
+            "period_quadrant": ["Q3", "Q2"],
+            "period_x": [-0.2, -0.1],
+            "period_y": [-0.1, 0.2],
+            "cumulative_count": [50, 80],
+        }
+    )
+
+    df_raw = pd.DataFrame(
+        {
+            "service": ["Service Z"] * 10,
+            "date": pd.date_range("2024-01-01", periods=10, freq="20D"),
+            "category": ["A"] * 5 + ["B"] * 5,
+        }
+    )
+
+    # use old parameter names
+    analysis = extract_transition_drivers(
+        movement_df=movement_data,
+        df_raw=df_raw,
+        entity_name="Service Z",
+        quarter_from="2024-Q2",  # old name
+        quarter_to="2024-Q3",    # old name
+        entity_col="service",
+        timestamp_col="date",
+        subcategory_cols=["category"],
+        top_n_subcategories=2,   # old name
+        min_subcategory_delta=1, # old name
+    )
+
+    assert "transition" in analysis
+    assert analysis["transition"]["from_quarter"] == "2024-Q2"
+    assert analysis["transition"]["to_quarter"] == "2024-Q3"

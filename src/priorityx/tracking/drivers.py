@@ -1,7 +1,8 @@
 """Transition driver analysis for identifying root causes of quadrant transitions."""
 
 import pandas as pd
-from typing import Dict, List, Optional, Tuple, Set
+import numpy as np
+from typing import Dict, List, Optional, Tuple, Set, Union
 import re
 from datetime import datetime
 from pathlib import Path
@@ -82,9 +83,9 @@ def _detect_subcategory_columns(
                 continue
 
             series = df[col]
-            if pd.api.types.is_object_dtype(
-                series
-            ) or pd.api.types.is_categorical_dtype(series):
+            if pd.api.types.is_object_dtype(series) or isinstance(
+                series.dtype, pd.CategoricalDtype
+            ):
                 unique_vals = series.nunique(dropna=True)
                 if 1 < unique_vals <= max_unique:
                     detected.append(col)
@@ -259,13 +260,19 @@ def extract_transition_drivers(
     movement_df: pd.DataFrame,
     df_raw: pd.DataFrame,
     entity_name: str,
-    quarter_from: str,
-    quarter_to: str,
+    period_from: str = None,
+    period_to: str = None,
     entity_col: str = "entity",
     timestamp_col: str = "date",
     subcategory_cols: Optional[List[str]] = None,
-    top_n_subcategories: int = 5,
-    min_subcategory_delta: int = 2,
+    numeric_cols: Optional[Dict[str, Union[List[float], int]]] = None,
+    top_n: int = 5,
+    min_delta: int = 2,
+    # backwards compat aliases
+    quarter_from: str = None,
+    quarter_to: str = None,
+    top_n_subcategories: int = None,
+    min_subcategory_delta: int = None,
 ) -> Dict:
     """
     Extract key drivers of a quadrant transition.
@@ -279,19 +286,24 @@ def extract_transition_drivers(
             may be quarterly ("YYYY-QN") or monthly ("YYYY-MM").
         df_raw: Raw event data (pandas DataFrame)
         entity_name: Entity to analyze
-        quarter_from: Starting period label (e.g., "2024-Q2" or "2024-03")
-        quarter_to: Ending period label (e.g., "2024-Q3" or "2024-04")
+        period_from: Starting period label (e.g., "2024-Q2" or "2024-03")
+        period_to: Ending period label (e.g., "2024-Q3" or "2024-04")
         entity_col: Entity column name in df_raw
         timestamp_col: Timestamp column name in df_raw
-        subcategory_cols: Optional list of subcategory columns to analyze
-        subcategory_cols: Optional list of subcategory columns to analyze, automatically detected if omitted
+        subcategory_cols: List of categorical columns to analyze as drivers
+        numeric_cols: Dict of numeric columns to bin and analyze.
+            - Explicit bins: {"amount": [0, 1e6, 5e6, 10e6]}
+            - Auto quantiles: {"resolution_days": 4} (4 quantile bins)
+        top_n: Number of top drivers to return per dimension
+        min_delta: Minimum count change to include as driver
 
     Returns:
         Dictionary with structure:
         {
             "transition": {...},           # Overview
             "magnitude": {...},            # Volume/growth changes
-            "subcategory_drivers": {...},  # Drivers by subcategory (if available)
+            "subcategory_drivers": {...},  # Drivers by categorical column
+            "numeric_drivers": {...},      # Drivers by binned numeric column
             "priority": {...},             # Priority classification
             "meta": {...},                 # Diagnostic metadata
         }
@@ -303,12 +315,26 @@ def extract_transition_drivers(
         ...     entity_col="service", timestamp_col="date"
         ... )
 
-        >>> # With subcategories
+        >>> # With categorical and numeric breakdowns
         >>> analysis = extract_transition_drivers(
-        ...     movement_df, df, "FSP X", "2024-Q2", "2024-Q3",
-        ...     subcategory_cols=["topic", "product"]
+        ...     movement_df, df, "Product X", "2024-Q3", "2024-Q4",
+        ...     subcategory_cols=["region", "gender"],
+        ...     numeric_cols={"amount": [0, 1e6, 5e6], "days": 4},
         ... )
     """
+    # backwards compatibility for renamed parameters
+    if period_from is None and quarter_from is not None:
+        period_from = quarter_from
+    if period_to is None and quarter_to is not None:
+        period_to = quarter_to
+    if top_n_subcategories is not None:
+        top_n = top_n_subcategories
+    if min_subcategory_delta is not None:
+        min_delta = min_subcategory_delta
+
+    if period_from is None or period_to is None:
+        raise ValueError("period_from and period_to are required")
+
     df_raw = df_raw.copy()
     df_raw[timestamp_col] = pd.to_datetime(df_raw[timestamp_col])
 
@@ -319,13 +345,13 @@ def extract_transition_drivers(
     if len(entity_data) == 0:
         raise ValueError(f"Entity '{entity_name}' not found in movement data")
 
-    from_data = entity_data[entity_data[period_col] == quarter_from]
-    to_data = entity_data[entity_data[period_col] == quarter_to]
+    from_data = entity_data[entity_data[period_col] == period_from]
+    to_data = entity_data[entity_data[period_col] == period_to]
 
     if len(from_data) == 0:
-        raise ValueError(f"Quarter '{quarter_from}' not found for '{entity_name}'")
+        raise ValueError(f"Period '{period_from}' not found for '{entity_name}'")
     if len(to_data) == 0:
-        raise ValueError(f"Quarter '{quarter_to}' not found for '{entity_name}'")
+        raise ValueError(f"Period '{period_to}' not found for '{entity_name}'")
 
     from_row = from_data.iloc[0]
     to_row = to_data.iloc[0]
@@ -334,8 +360,8 @@ def extract_transition_drivers(
     to_quadrant = to_row["period_quadrant"]
 
     # period-specific complaints (per quarter) for hybrid analysis
-    from_start, from_end = _calculate_quarter_dates(quarter_from)
-    to_start, to_end = _calculate_quarter_dates(quarter_to)
+    from_start, from_end = _calculate_quarter_dates(period_from)
+    to_start, to_end = _calculate_quarter_dates(period_to)
 
     entity_complaints = df_raw[df_raw[entity_col] == entity_name]
 
@@ -357,14 +383,14 @@ def extract_transition_drivers(
     # transition overview
     transition_overview = {
         "entity": entity_name,
-        "from_quarter": quarter_from,
-        "to_quarter": quarter_to,
+        "from_quarter": period_from,
+        "to_quarter": period_to,
         "from_quadrant": from_quadrant,
         "to_quadrant": to_quadrant,
         "quadrant_changed": from_quadrant != to_quadrant,
         "from_quadrant_label": _get_quadrant_label(from_quadrant),
         "to_quadrant_label": _get_quadrant_label(to_quadrant),
-        "risk_level_change": f"{_get_risk_level(from_quadrant)} → {_get_risk_level(to_quadrant)}",
+        "risk_level_change": f"{_get_risk_level(from_quadrant)} -> {_get_risk_level(to_quadrant)}",
         "is_concerning": _classify_transition_concern(from_quadrant, to_quadrant),
     }
 
@@ -458,14 +484,26 @@ def extract_transition_drivers(
             to_period_data,
             effective_subcats,
             absolute_delta,
-            top_n=top_n_subcategories,
-            min_delta=min_subcategory_delta,
+            top_n=top_n,
+            min_delta=min_delta,
+        )
+
+    # numeric column analysis
+    if numeric_cols:
+        result["numeric_drivers"] = _analyze_numeric_drivers(
+            from_period_data,
+            to_period_data,
+            numeric_cols,
+            absolute_delta,
+            top_n=top_n,
+            min_delta=min_delta,
         )
 
     result["meta"] = {
         "subcategory_columns_used": effective_subcats,
         "subcategory_columns_auto_detected": auto_detected_subcats,
         "custom_driver_columns_loaded": bool(custom_driver_aliases),
+        "numeric_columns_used": list(numeric_cols.keys()) if numeric_cols else [],
     }
 
     return result
@@ -609,9 +647,155 @@ def _analyze_subcategory_drivers(
     return drivers_by_subcategory
 
 
-def display_transition_drivers(analysis: Dict) -> None:
-    """Print a concise, diagnoser-style summary of transition drivers."""
+def _analyze_numeric_drivers(
+    from_data: pd.DataFrame,
+    to_data: pd.DataFrame,
+    numeric_cols: Dict[str, Union[List[float], int]],
+    absolute_delta: int,
+    top_n: int = 5,
+    min_delta: int = 1,
+) -> Dict:
+    """Analyze which numeric column bins drove the transition.
 
+    Args:
+        from_data: Raw data for the starting period
+        to_data: Raw data for the ending period
+        numeric_cols: Dict mapping column name to bin specification:
+            - List of floats: explicit bin edges [0, 1e6, 5e6, 10e6]
+            - Integer: number of quantile bins to compute
+        absolute_delta: Total count change for percent_of_change calculation
+        top_n: Number of top drivers to return per column
+        min_delta: Minimum count change to include
+
+    Returns:
+        Dict mapping column name to driver analysis results
+    """
+    drivers_by_numeric = {}
+
+    for col_name, bin_spec in numeric_cols.items():
+        # skip if column not in data
+        if col_name not in from_data.columns and col_name not in to_data.columns:
+            continue
+
+        # combine data for consistent binning
+        combined_values = pd.concat([
+            from_data[col_name] if col_name in from_data.columns else pd.Series(dtype=float),
+            to_data[col_name] if col_name in to_data.columns else pd.Series(dtype=float),
+        ]).dropna()
+
+        if len(combined_values) == 0:
+            continue
+
+        # determine bin edges
+        if isinstance(bin_spec, int):
+            # quantile bins
+            n_bins = bin_spec
+            try:
+                _, bin_edges = pd.qcut(combined_values, q=n_bins, retbins=True, duplicates="drop")
+            except ValueError:
+                # fallback if not enough unique values
+                bin_edges = np.linspace(combined_values.min(), combined_values.max(), n_bins + 1)
+        else:
+            # explicit bin edges
+            bin_edges = bin_spec
+
+        # create bin labels
+        bin_labels = []
+        for i in range(len(bin_edges) - 1):
+            low, high = bin_edges[i], bin_edges[i + 1]
+            if high >= 1e9:
+                bin_labels.append(f">= {_format_number(low)}")
+            elif low <= 0:
+                bin_labels.append(f"< {_format_number(high)}")
+            else:
+                bin_labels.append(f"{_format_number(low)} - {_format_number(high)}")
+
+        # bin the data
+        def bin_column(df: pd.DataFrame, col: str) -> pd.Series:
+            if col not in df.columns:
+                return pd.Series(dtype=str)
+            binned = pd.cut(df[col], bins=bin_edges, labels=bin_labels, include_lowest=True)
+            return binned
+
+        from_binned = bin_column(from_data, col_name)
+        to_binned = bin_column(to_data, col_name)
+
+        # aggregate by bin (convert to string to avoid categorical merge issues)
+        from_counts = from_binned.astype(str).value_counts().reset_index()
+        from_counts.columns = ["bin", "count"]
+        to_counts = to_binned.astype(str).value_counts().reset_index()
+        to_counts.columns = ["bin", "count"]
+
+        # merge and calculate deltas
+        comparison = pd.merge(
+            from_counts, to_counts, on="bin", how="outer", suffixes=("_from", "_to")
+        ).fillna(0)
+
+        # filter out 'nan' bins from empty series
+        comparison = comparison[comparison["bin"] != "nan"]
+
+        comparison["delta"] = comparison["count_to"] - comparison["count_from"]
+        if absolute_delta > 0:
+            comparison["percent_of_change"] = comparison["delta"] / absolute_delta * 100
+        else:
+            comparison["percent_of_change"] = 0.0
+
+        # filter and get top drivers
+        min_threshold = max(1, min_delta)
+        filtered = comparison[comparison["delta"] >= min_threshold]
+        top_drivers = filtered.nlargest(top_n, "delta").to_dict("records")
+
+        drivers_list = []
+        for driver in top_drivers:
+            drivers_list.append({
+                "bin": driver["bin"],
+                "count_from": int(driver["count_from"]),
+                "count_to": int(driver["count_to"]),
+                "delta": int(driver["delta"]),
+                "percent_of_change": round(driver["percent_of_change"], 1),
+            })
+
+        # calculate explanation power
+        if absolute_delta > 0:
+            top_explain_pct = sum(d["delta"] for d in drivers_list) / absolute_delta * 100
+        else:
+            top_explain_pct = 0.0
+
+        drivers_by_numeric[col_name] = {
+            "top_drivers": drivers_list,
+            "top_n_explain_pct": round(top_explain_pct, 1),
+            "bin_edges": [float(e) for e in bin_edges],
+        }
+
+    return drivers_by_numeric
+
+
+def _format_number(val: float) -> str:
+    """Format large numbers with K/M/B suffixes."""
+    if abs(val) >= 1e9:
+        return f"{val/1e9:.1f}B"
+    elif abs(val) >= 1e6:
+        return f"{val/1e6:.1f}M"
+    elif abs(val) >= 1e3:
+        return f"{val/1e3:.1f}K"
+    else:
+        return f"{val:.0f}"
+
+
+def display_transition_drivers(
+    analysis: Dict,
+    save_txt: bool = False,
+    txt_path: Optional[str] = None,
+    txt_mode: str = "a",
+) -> None:
+    """Print a concise, diagnoser-style summary of transition drivers.
+
+    Args:
+        analysis: Output from extract_transition_drivers()
+        save_txt: Save output to text file (default: False)
+        txt_path: Path for text file (required if save_txt=True)
+        txt_mode: File mode - "a" to append (default), "w" to overwrite
+    """
     trans = analysis["transition"]
     mag = analysis["magnitude"]
     vol = mag["volume_change"]
@@ -620,45 +804,46 @@ def display_transition_drivers(analysis: Dict) -> None:
     spike = analysis.get("spike_drivers", {})
     subcats = analysis.get("subcategory_drivers", {})
 
-    print()
-    print("TRANSITION DRIVER ANALYSIS")
+    lines = []
+    lines.append("")
+    lines.append("TRANSITION DRIVER ANALYSIS")
 
     # headline
-    print(
+    lines.append(
         f"[P{priority['priority']}] {trans['entity']}: "
         f"{trans['from_quarter']} -> {trans['to_quarter']} "
         f"({trans.get('from_quadrant', '')} -> {trans.get('to_quadrant', '')})"
     )
     if trans.get("risk_level_change"):
-        print(f"  Risk: {trans['risk_level_change']}")
+        lines.append(f"  Risk: {trans['risk_level_change']}")
 
     # core metrics
-    print(
+    lines.append(
         "  Cumulative volume (all time): "
         f"{vol['count_from']:,} -> {vol['count_to']:,} "
         f"(Δ {vol['absolute_delta']:+,}, {vol['percent_change']:+.1f}%)"
     )
-    print(
+    lines.append(
         "  X/Y:    "
         f"X {vol['x_from']:.2f} -> {vol['x_to']:.2f} (Δ {vol['x_delta']:+.2f}), "
         f"Y {growth['y_from']:.2f} -> {growth['y_to']:.2f} (Δ {growth['y_delta']:+.2f})"
     )
     if "period_counts" in mag:
         pc = mag["period_counts"]
-        print(
+        lines.append(
             "  Period volume (quarter): "
             f"{pc['count_from']} -> {pc['count_to']} "
             f"(Δ {pc['absolute_delta']:+})"
         )
 
     # priority + spike summary
-    print(f"  Priority: P{priority['priority']} ({priority['priority_name']})")
-    print(f"  Trigger:  {priority['trigger_reason']}")
+    lines.append(f"  Priority: P{priority['priority']} ({priority['priority_name']})")
+    lines.append(f"  Trigger:  {priority['trigger_reason']}")
 
     for note in spike.get("notes", []):
-        print(f"  · {note}")
+        lines.append(f"  · {note}")
 
-    # subcategory drivers (if available)
+    # subcategory drivers
     for subcat_col, drivers_data in subcats.items():
         top_drivers = drivers_data.get("top_drivers", [])
         explain_pct = drivers_data.get(
@@ -667,12 +852,36 @@ def display_transition_drivers(analysis: Dict) -> None:
         if not top_drivers:
             continue
 
-        print(f"  Drivers by {subcat_col} (explain {explain_pct:.1f}% of change):")
+        lines.append(f"  Drivers by {subcat_col} (explain {explain_pct:.1f}% of change):")
         for d in top_drivers:
-            print(
+            lines.append(
                 f"    - {d['name']}: "
                 f"{d['count_from']:,} -> {d['count_to']:,} "
                 f"(Δ {d['delta']:+,}, {d['percent_of_change']:.1f}%, {d['driver_type']})"
             )
 
-    print()  # trailing newline for readability
+    # numeric drivers
+    numerics = analysis.get("numeric_drivers", {})
+    for col_name, drivers_data in numerics.items():
+        top_drivers = drivers_data.get("top_drivers", [])
+        explain_pct = drivers_data.get("top_n_explain_pct", 0.0)
+        if not top_drivers:
+            continue
+
+        lines.append(f"  Drivers by {col_name} (explain {explain_pct:.1f}% of change):")
+        for d in top_drivers:
+            lines.append(
+                f"    - {d['bin']}: "
+                f"{d['count_from']:,} -> {d['count_to']:,} "
+                f"(Δ {d['delta']:+,}, {d['percent_of_change']:.1f}%)"
+            )
+
+    lines.append("")  # trailing newline
+
+    # output
+    text = "\n".join(lines)
+    print(text)
+
+    if save_txt and txt_path:
+        with open(txt_path, txt_mode, encoding="utf-8") as f:
+            f.write(text + "\n")

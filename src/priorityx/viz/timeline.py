@@ -422,7 +422,7 @@ def plot_transition_timeline(
 
     # Only set title if not empty
     if title is None:
-        title = f"{entity_name} Transition Timeline"
+        title = f"{ylabel} Transition Timeline"
     if title:  # Skip if empty string
         ax.set_title(title, fontsize=17, fontweight="bold", pad=20)
 

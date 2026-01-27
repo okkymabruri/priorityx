@@ -1,7 +1,7 @@
 """Cumulative movement tracking through priority quadrants."""
 
 from datetime import timedelta
-from typing import Optional, Sequence, Union
+from typing import Dict, Literal, Optional, Sequence, Tuple, Union, overload
 
 import pandas as pd
 
@@ -291,6 +291,36 @@ def normalize_quarter_schedule(
     )
 
 
+@overload
+def track_movement(
+    df: pd.DataFrame,
+    entity_col: str,
+    timestamp_col: str,
+    quarters: Optional[Sequence[Union[tuple[str, str], str]]] = ...,
+    min_total_count: int = ...,
+    decline_window_quarters: int = ...,
+    temporal_granularity: str = ...,
+    vcp_p: float = ...,
+    fe_p: float = ...,
+    return_metadata: Literal[False] = ...,
+) -> pd.DataFrame: ...
+
+
+@overload
+def track_movement(
+    df: pd.DataFrame,
+    entity_col: str,
+    timestamp_col: str,
+    quarters: Optional[Sequence[Union[tuple[str, str], str]]] = ...,
+    min_total_count: int = ...,
+    decline_window_quarters: int = ...,
+    temporal_granularity: str = ...,
+    vcp_p: float = ...,
+    fe_p: float = ...,
+    return_metadata: Literal[True] = ...,
+) -> Tuple[pd.DataFrame, Dict]: ...
+
+
 def track_movement(
     df: pd.DataFrame,
     entity_col: str,
@@ -301,7 +331,8 @@ def track_movement(
     temporal_granularity: str = "quarterly",
     vcp_p: float = 3.5,
     fe_p: float = 3.0,
-) -> tuple[pd.DataFrame, dict]:
+    return_metadata: bool = False,
+) -> Union[pd.DataFrame, Tuple[pd.DataFrame, Dict]]:
     """
     Track entity movement through priority quadrants over time.
 
@@ -322,27 +353,29 @@ def track_movement(
         temporal_granularity: Time granularity for GLMM ('quarterly', 'yearly', 'semiannual')
         vcp_p: Prior scale for random effects (default: 3.5)
         fe_p: Prior scale for fixed effects (default: 3.0)
+        return_metadata: If True, returns (df, metadata) tuple. Default False returns just DataFrame.
 
     Returns:
-        Tuple of (movement_df, metadata_dict)
-        - movement_df: Period-by-period tracking with columns:
-          [entity, quarter, period_count, cumulative_count, period_x, period_y,
-           period_quadrant, global_quadrant, global_x, global_y,
-           count_total, x_delta, y_delta, quadrant_differs]
+        DataFrame with movement tracking data.
+        If return_metadata=True, returns tuple of (DataFrame, metadata dict).
+
+        DataFrame columns:
+        - entity, quarter, period_count, cumulative_count, period_x, period_y,
+          period_quadrant, global_quadrant, global_x, global_y,
+          count_total, x_delta, y_delta, quadrant_differs
           (the ``quarter`` column serves as the canonical period axis
           for both quarterly and monthly granularities)
-        - metadata_dict: Tracking statistics and configuration
 
     Examples:
-        >>> # auto-detect quarters from data
-        >>> movement_df, meta = track_cumulative_movement(
+        >>> # Simple form (most users)
+        >>> movement = px.track_movement(
         ...     df, entity_col="service", timestamp_col="date"
         ... )
 
-        >>> # specify date range
-        >>> movement_df, meta = track_cumulative_movement(
+        >>> # Get metadata too
+        >>> movement, meta = px.track_movement(
         ...     df, entity_col="service", timestamp_col="date",
-        ...     quarters=["2024-01-01", "2025-01-01"]
+        ...     return_metadata=True,
         ... )
     """
     # ensure datetime type
@@ -388,7 +421,9 @@ def track_movement(
             "temporal_granularity": temporal_granularity,
             "quarter_schedule": [],
         }
-        return empty_df, metadata
+        if return_metadata:
+            return empty_df, metadata
+        return empty_df
 
     print("\nCUMULATIVE MOVEMENT TRACKING")
 
@@ -397,7 +432,7 @@ def track_movement(
 
     # step 1: calculate global baseline from full dataset
     print("\n[1/3] Calculating global baseline (FULL dataset)...")
-    global_results, _ = fit_priority_matrix(
+    global_results = fit_priority_matrix(
         df,
         entity_col=entity_col,
         timestamp_col=timestamp_col,
@@ -497,7 +532,7 @@ def track_movement(
 
         # run glmm on this cumulative period
         try:
-            period_results, _ = fit_priority_matrix(
+            period_results = fit_priority_matrix(
                 cumulative_df,
                 entity_col=entity_col,
                 timestamp_col=timestamp_col,
@@ -636,7 +671,9 @@ def track_movement(
         "quarter_schedule": period_schedule,
     }
 
-    return movement_df, metadata
+    if return_metadata:
+        return movement_df, metadata
+    return movement_df
 
 
 def track_cumulative_movement(*args, **kwargs):
@@ -651,6 +688,38 @@ def track_cumulative_movement(*args, **kwargs):
     return track_movement(*args, **kwargs)
 
 
+@overload
+def load_or_track_movement(
+    df_raw: pd.DataFrame,
+    *,
+    entity_name: str,
+    entity_col: str,
+    timestamp_col: str,
+    quarters,
+    min_total_count: int,
+    temporal_granularity: str = ...,
+    output_dir: str = ...,
+    use_cache: bool = ...,
+    return_path: Literal[False] = ...,
+) -> pd.DataFrame: ...
+
+
+@overload
+def load_or_track_movement(
+    df_raw: pd.DataFrame,
+    *,
+    entity_name: str,
+    entity_col: str,
+    timestamp_col: str,
+    quarters,
+    min_total_count: int,
+    temporal_granularity: str = ...,
+    output_dir: str = ...,
+    use_cache: bool = ...,
+    return_path: Literal[True] = ...,
+) -> Tuple[pd.DataFrame, Optional[str]]: ...
+
+
 def load_or_track_movement(
     df_raw: pd.DataFrame,
     *,
@@ -662,12 +731,29 @@ def load_or_track_movement(
     temporal_granularity: str = "quarterly",
     output_dir: str = "results/csv",
     use_cache: bool = True,
-) -> tuple[pd.DataFrame, str | None]:
+    return_path: bool = False,
+) -> Union[pd.DataFrame, Tuple[pd.DataFrame, Optional[str]]]:
     """Load latest movement CSV for entity or compute and save.
 
     When ``use_cache`` is True, tries to load the most recent
     ``movement-<entity_slug>-*.csv`` from ``output_dir``. If not
     found, runs tracking and saves a fresh movement CSV.
+
+    Args:
+        df_raw: Input DataFrame
+        entity_name: Friendly name for file naming
+        entity_col: Entity column name
+        timestamp_col: Timestamp column name
+        quarters: Period specification
+        min_total_count: Minimum count threshold
+        temporal_granularity: "quarterly" or "monthly"
+        output_dir: Cache directory (default: "results/csv")
+        use_cache: Load from cache if available (default: True)
+        return_path: If True, returns (df, csv_path) tuple. Default False returns just DataFrame.
+
+    Returns:
+        DataFrame with movement data.
+        If return_path=True, returns (DataFrame, csv_path) tuple.
     """
 
     csv_path: str | None = None
@@ -702,9 +788,11 @@ def load_or_track_movement(
                     month_df.to_csv(csv_path, index=False)
                     movement_df = month_df.rename(columns={"month": "quarter"})
 
-            return movement_df, csv_path
+            if return_path:
+                return movement_df, csv_path
+            return movement_df
 
-    movement_df, _meta = track_movement(
+    movement_df = track_movement(
         df_raw,
         entity_col=entity_col,
         timestamp_col=timestamp_col,
@@ -727,4 +815,6 @@ def load_or_track_movement(
         output_dir=output_dir,
     )
 
-    return movement_df, csv_path
+    if return_path:
+        return movement_df, csv_path
+    return movement_df

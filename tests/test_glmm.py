@@ -37,7 +37,7 @@ def test_fit_priority_matrix_basic():
     """Test basic GLMM fitting."""
     df = generate_test_data()
 
-    results, stats = px.fit_priority_matrix(
+    results = px.fit_priority_matrix(
         df,
         entity_col="entity",
         timestamp_col="date",
@@ -58,7 +58,8 @@ def test_fit_priority_matrix_stats():
     df = generate_test_data()
 
     results, stats = px.fit_priority_matrix(
-        df, entity_col="entity", timestamp_col="date", temporal_granularity="quarterly"
+        df, entity_col="entity", timestamp_col="date", temporal_granularity="quarterly",
+        return_stats=True,
     )
 
     assert "n_entities" in stats
@@ -79,6 +80,7 @@ def test_fit_priority_matrix_monthly_basic():
         timestamp_col="date",
         temporal_granularity="monthly",
         min_observations=3,
+        return_stats=True,
     )
 
     assert len(results) > 0
@@ -91,7 +93,7 @@ def test_fit_priority_matrix_seed_control():
     df = generate_test_data()
 
     px.set_glmm_random_seed(1234)
-    results1, _ = px.fit_priority_matrix(
+    results1 = px.fit_priority_matrix(
         df,
         entity_col="entity",
         timestamp_col="date",
@@ -100,7 +102,7 @@ def test_fit_priority_matrix_seed_control():
     )
 
     px.set_glmm_random_seed(1234)
-    results2, _ = px.fit_priority_matrix(
+    results2 = px.fit_priority_matrix(
         df,
         entity_col="entity",
         timestamp_col="date",
@@ -119,12 +121,12 @@ def test_min_total_count_filter():
     df = generate_test_data(n_entities=5)
 
     # without filter
-    results1, _ = px.fit_priority_matrix(
+    results1 = px.fit_priority_matrix(
         df, entity_col="entity", timestamp_col="date", min_total_count=0
     )
 
     # with high filter (should filter out low-volume entities)
-    results2, _ = px.fit_priority_matrix(
+    results2 = px.fit_priority_matrix(
         df, entity_col="entity", timestamp_col="date", min_total_count=250
     )
 
@@ -142,7 +144,7 @@ def test_date_filter():
     df = generate_test_data()
 
     try:
-        results, _ = px.fit_priority_matrix(
+        results = px.fit_priority_matrix(
             df,
             entity_col="entity",
             timestamp_col="date",
@@ -173,6 +175,7 @@ def test_date_filter_monthly():
         temporal_granularity="monthly",
         min_total_count=50,
         min_observations=3,
+        return_stats=True,
     )
 
     assert len(results) > 0
@@ -200,6 +203,7 @@ def test_y_metric_uses_gaussian_glmm():
         temporal_granularity="quarterly",
         min_observations=3,
         y_metric="metric",  # current version: use y_metric instead of metric_col
+        return_stats=True,
     )
 
     assert len(results) > 0
@@ -241,6 +245,7 @@ def test_dual_metric_axes():
         min_observations=3,
         x_metric="metric_x",
         y_metric="metric_y",
+        return_stats=True,
     )
 
     assert len(results) > 0

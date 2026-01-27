@@ -1,6 +1,6 @@
 """GLMM estimation for entity prioritization using Poisson and Gaussian mixed models."""
 
-from typing import Dict, Literal, Optional, Tuple
+from typing import Dict, Literal, Optional, Tuple, Union, overload
 from datetime import timedelta
 import os
 import warnings
@@ -647,6 +647,28 @@ def _fit_dual_glmm(
     return out, stats
 
 
+@overload
+def fit_priority_matrix(
+    df: pd.DataFrame,
+    entity_col: str,
+    timestamp_col: str,
+    *,
+    return_stats: Literal[False] = ...,
+    **kwargs,
+) -> pd.DataFrame: ...
+
+
+@overload
+def fit_priority_matrix(
+    df: pd.DataFrame,
+    entity_col: str,
+    timestamp_col: str,
+    *,
+    return_stats: Literal[True],
+    **kwargs,
+) -> Tuple[pd.DataFrame, Dict]: ...
+
+
 def fit_priority_matrix(
     df: pd.DataFrame,
     entity_col: str,
@@ -670,7 +692,8 @@ def fit_priority_matrix(
     vcp_p: float = DEFAULT_VCP_P,
     fe_p: float = DEFAULT_FE_P,
     verbose: bool = False,
-) -> Tuple[pd.DataFrame, Dict]:
+    return_stats: bool = False,
+) -> Union[pd.DataFrame, Tuple[pd.DataFrame, Dict]]:
     """
     Fit GLMM to classify entities into priority quadrants.
 
@@ -704,9 +727,11 @@ def fit_priority_matrix(
         vcp_p: Random effects prior scale.
         fe_p: Fixed effects prior scale.
         verbose: Print diagnostic logs.
+        return_stats: If True, returns (df, stats) tuple. Default False returns just DataFrame.
 
     Returns:
-        Tuple of (results DataFrame, statistics dict).
+        DataFrame with entity scores and quadrants.
+        If return_stats=True, returns tuple of (DataFrame, statistics dict).
 
         Results DataFrame columns:
         - entity: Entity identifier
@@ -716,15 +741,21 @@ def fit_priority_matrix(
         - quadrant: Classification (Q1-Q4)
 
     Examples:
-        >>> # Default: volume x growth
-        >>> results, stats = px.fit_priority_matrix(
+        >>> # Default: volume x growth (simple form)
+        >>> results = px.fit_priority_matrix(
         ...     df,
         ...     entity_col="service",
         ...     timestamp_col="date",
         ... )
 
-        >>> # Custom Y: volume x resolution_days
+        >>> # Get statistics too
         >>> results, stats = px.fit_priority_matrix(
+        ...     df, entity_col="service", timestamp_col="date",
+        ...     return_stats=True,
+        ... )
+
+        >>> # Custom Y: volume x resolution_days
+        >>> results = px.fit_priority_matrix(
         ...     df,
         ...     entity_col="service",
         ...     timestamp_col="date",
@@ -732,7 +763,7 @@ def fit_priority_matrix(
         ... )
 
         >>> # Custom both: disputed_amount x paid_amount
-        >>> results, stats = px.fit_priority_matrix(
+        >>> results = px.fit_priority_matrix(
         ...     df,
         ...     entity_col="service",
         ...     timestamp_col="date",
@@ -744,7 +775,7 @@ def fit_priority_matrix(
     # If both metrics are None (default) or both are the same, use single GLMM
     if x_metric == y_metric:
         # Single GLMM mode: x_score = intercept, y_score = slope (or custom effects)
-        return _fit_single_glmm(
+        results_df, stats = _fit_single_glmm(
             df,
             entity_col=entity_col,
             timestamp_col=timestamp_col,
@@ -764,7 +795,7 @@ def fit_priority_matrix(
         )
     else:
         # Dual GLMM mode: separate models for X and Y axes
-        return _fit_dual_glmm(
+        results_df, stats = _fit_dual_glmm(
             df,
             entity_col=entity_col,
             timestamp_col=timestamp_col,
@@ -782,3 +813,7 @@ def fit_priority_matrix(
             fe_p=fe_p,
             verbose=verbose,
         )
+
+    if return_stats:
+        return results_df, stats
+    return results_df

@@ -45,6 +45,7 @@ def test_fit_priority_matrix_custom_y_metric():
         temporal_granularity="quarterly",
         min_observations=0,
         min_total_count=0,
+        return_stats=True,
     )
 
     assert "x_score" in results.columns
@@ -79,6 +80,7 @@ def test_fit_priority_matrix_dual_metrics():
         temporal_granularity="quarterly",
         min_observations=0,
         min_total_count=0,
+        return_stats=True,
     )
 
     assert len(results) > 0

@@ -291,7 +291,7 @@ def normalize_quarter_schedule(
     )
 
 
-def track_cumulative_movement(
+def track_movement(
     df: pd.DataFrame,
     entity_col: str,
     timestamp_col: str,
@@ -305,8 +305,8 @@ def track_cumulative_movement(
     """
     Track entity movement through priority quadrants over time.
 
-    Uses cumulative data periods to track X/Y movement while maintaining
-    stable global baseline classification. Three-step process:
+    Uses cumulative data periods (GLMM on all data up to each period)
+    for stable estimates while tracking X/Y position changes. Three-step process:
 
     1. Global baseline: GLMM on full dataset → stable quadrant assignment
     2. Endpoint cohorting: Define valid entities based on endpoint criteria
@@ -639,6 +639,18 @@ def track_cumulative_movement(
     return movement_df, metadata
 
 
+def track_cumulative_movement(*args, **kwargs):
+    """Deprecated: Use track_movement() instead."""
+    import warnings
+
+    warnings.warn(
+        "track_cumulative_movement() is deprecated, use track_movement() instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return track_movement(*args, **kwargs)
+
+
 def load_or_track_movement(
     df_raw: pd.DataFrame,
     *,
@@ -692,7 +704,7 @@ def load_or_track_movement(
 
             return movement_df, csv_path
 
-    movement_df, _meta = track_cumulative_movement(
+    movement_df, _meta = track_movement(
         df_raw,
         entity_col=entity_col,
         timestamp_col=timestamp_col,

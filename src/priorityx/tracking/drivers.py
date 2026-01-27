@@ -281,7 +281,7 @@ def extract_transition_drivers(
     including volume changes, growth changes, and contributing sub-categories.
 
     Args:
-        movement_df: Output from track_cumulative_movement(). Expected to
+        movement_df: Output from track_movement(). Expected to
             contain the canonical period column ("quarter") whose labels
             may be quarterly ("YYYY-QN") or monthly ("YYYY-MM").
         df_raw: Raw event data (pandas DataFrame)

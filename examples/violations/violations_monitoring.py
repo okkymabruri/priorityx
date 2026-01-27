@@ -80,7 +80,7 @@ px.plot_priority_matrix(
     save_csv=True,
 )
 
-movement, meta = px.track_cumulative_movement(
+movement, meta = px.track_movement(
     df,
     entity_col="department",
     timestamp_col="date",

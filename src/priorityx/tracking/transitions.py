@@ -100,7 +100,7 @@ def extract_transitions(
     2. Within-quadrant dramatic changes (velocity thresholds)
 
     Args:
-        movement_df: DataFrame from track_cumulative_movement(). Expected
+        movement_df: DataFrame from track_movement(). Expected
                     to contain the canonical period column (``quarter``)
                     whose labels may be quarterly ("YYYY-QN") or monthly
                     ("YYYY-MM"), plus: entity, period_quadrant,

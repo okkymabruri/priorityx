@@ -52,7 +52,7 @@ px.plot_priority_matrix(
 print()
 print("CUMULATIVE MOVEMENT TRACKING")
 
-movement, meta = px.track_cumulative_movement(
+movement, meta = px.track_movement(
     df,
     entity_col="service",
     timestamp_col="date",

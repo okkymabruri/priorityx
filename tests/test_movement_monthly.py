@@ -31,7 +31,7 @@ def test_track_cumulative_movement_monthly_basic():
 
     df = _generate_monthly_data()
 
-    movement_df, meta = px.track_cumulative_movement(
+    movement_df, meta = px.track_movement(
         df,
         entity_col="entity",
         timestamp_col="date",
@@ -51,7 +51,7 @@ def test_monthly_timeline_smoke():
 
     df = _generate_monthly_data()
 
-    movement_df, _ = px.track_cumulative_movement(
+    movement_df, _ = px.track_movement(
         df,
         entity_col="entity",
         timestamp_col="date",
@@ -84,7 +84,7 @@ def test_monthly_trajectories_smoke():
 
     df = _generate_monthly_data()
 
-    movement_df, _ = px.track_cumulative_movement(
+    movement_df, _ = px.track_movement(
         df,
         entity_col="entity",
         timestamp_col="date",
@@ -110,7 +110,7 @@ def test_trajectories_highlight_top_n():
 
     df = _generate_monthly_data(n_entities=5, n_months=6)
 
-    movement_df, _ = px.track_cumulative_movement(
+    movement_df, _ = px.track_movement(
         df,
         entity_col="entity",
         timestamp_col="date",
@@ -138,7 +138,7 @@ def test_trajectories_recent_periods():
 
     df = _generate_monthly_data(n_entities=3, n_months=12)
 
-    movement_df, _ = px.track_cumulative_movement(
+    movement_df, _ = px.track_movement(
         df,
         entity_col="entity",
         timestamp_col="date",
@@ -166,7 +166,7 @@ def test_trajectories_highlight_by_total_movement():
 
     df = _generate_monthly_data(n_entities=4, n_months=6)
 
-    movement_df, _ = px.track_cumulative_movement(
+    movement_df, _ = px.track_movement(
         df,
         entity_col="entity",
         timestamp_col="date",

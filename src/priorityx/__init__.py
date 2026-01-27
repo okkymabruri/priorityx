@@ -37,7 +37,8 @@ from .api import (  # noqa: F401
     plot_priority_matrix,
     plot_transition_timeline,
     set_glmm_random_seed,
-    track_cumulative_movement,
+    track_movement,
+    track_cumulative_movement,  # deprecated alias
 )
 
 __version__ = "0.5.0"
@@ -49,7 +50,8 @@ __all__ = [
     # Utilities
     "set_glmm_random_seed",
     # Tracking
-    "track_cumulative_movement",
+    "track_movement",
+    "track_cumulative_movement",  # deprecated alias
     "load_or_track_movement",
     "extract_transitions",
     "extract_transition_drivers",

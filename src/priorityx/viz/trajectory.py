@@ -46,7 +46,7 @@ def plot_entity_trajectories(
     displaying how entities move through priority quadrants.
 
     Args:
-        movement_df: DataFrame from track_cumulative_movement()
+        movement_df: DataFrame from track_movement()
                     Required columns: entity, quarter, period_x, period_y,
                     global_quadrant
         entity_name: Name for entity type (default: "Entity")

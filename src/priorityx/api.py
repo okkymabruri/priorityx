@@ -12,7 +12,7 @@ without losing access to the more detailed submodules under
 
 from .core.glmm import fit_priority_matrix, set_glmm_random_seed
 from .metrics import aggregate_entity_metrics, add_priority_indices, sensitivity_analysis
-from .tracking.movement import track_cumulative_movement, load_or_track_movement
+from .tracking.movement import track_movement, track_cumulative_movement, load_or_track_movement
 from .tracking.transitions import extract_transitions
 from .tracking.drivers import (
     extract_transition_drivers,
@@ -30,7 +30,8 @@ __all__ = [
     "fit_priority_matrix",
     # Tracking and visualization helpers
     "set_glmm_random_seed",
-    "track_cumulative_movement",
+    "track_movement",
+    "track_cumulative_movement",  # deprecated alias
     "load_or_track_movement",
     "extract_transitions",
     "extract_transition_drivers",

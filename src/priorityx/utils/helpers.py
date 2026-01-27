@@ -119,7 +119,7 @@ def display_movement_summary(
     Print movement tracking summary.
 
     Args:
-        movement_df: DataFrame from track_cumulative_movement()
+        movement_df: DataFrame from track_movement()
         entity_name: Name for entity type
 
     Examples:

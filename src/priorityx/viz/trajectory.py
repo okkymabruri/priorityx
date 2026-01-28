@@ -1,6 +1,7 @@
 """Entity movement trajectory plots."""
 
-from typing import List, Optional, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple, Union
 import warnings
 
 import matplotlib.pyplot as plt
@@ -25,6 +26,10 @@ def plot_entity_trajectories(
     max_entities: int = 10,
     figsize: Tuple[int, int] = (16, 12),
     title: Optional[str] = None,
+    # simplified path API (preferred)
+    plot_path: Union[str, Path, None] = None,
+    csv_path: Union[str, Path, None] = None,
+    # deprecated: use plot_path/csv_path instead
     save_plot: bool = False,
     save_csv: bool = False,
     plot_dir: str = "results/plot",
@@ -54,10 +59,12 @@ def plot_entity_trajectories(
         max_entities: Maximum entities to show (default: 10)
         figsize: Figure size (width, height)
         title: Optional custom title
-        save_plot: Save plot to file (default: False)
-        save_csv: Save trajectories to CSV (default: False)
-        plot_dir: Output directory for plot files
-        csv_dir: Output directory for CSV files
+        plot_path: Path to save plot (accepts Path or str). If provided, saves plot.
+        csv_path: Path to save CSV (accepts Path or str). If provided, saves CSV.
+        save_plot: [DEPRECATED] Use plot_path instead. Save plot to file.
+        save_csv: [DEPRECATED] Use csv_path instead. Save trajectories to CSV.
+        plot_dir: [DEPRECATED] Use plot_path instead. Output directory for plot files.
+        csv_dir: [DEPRECATED] Use csv_path instead. Output directory for CSV files.
         temporal_granularity: Time granularity for file naming
         close_fig: Close the figure before returning (set True if you see duplicate inline renders)
         legend_loc: Legend position (default: "lower right")
@@ -436,16 +443,23 @@ def plot_entity_trajectories(
 
     plt.tight_layout()
 
-    # save plot if requested
-    if save_plot:
-        import os
+    # determine actual save paths
+    actual_plot_path: Optional[Path] = None
+    actual_csv_path: Optional[Path] = None
+
+    # new API takes precedence
+    if plot_path is not None:
+        actual_plot_path = Path(plot_path)
+    elif save_plot:
+        warnings.warn(
+            "save_plot/plot_dir/plot_filename are deprecated. Use plot_path instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         from datetime import datetime
 
-        os.makedirs(plot_dir, exist_ok=True)
         if plot_filename:
-            plot_path = os.path.join(plot_dir, plot_filename)
-            if not plot_path.lower().endswith(".png"):
-                plot_path = f"{plot_path}.png"
+            actual_plot_path = Path(plot_dir) / plot_filename
         else:
             timestamp = datetime.now().strftime("%Y%m%d")
             granularity_suffix = {
@@ -455,30 +469,43 @@ def plot_entity_trajectories(
                 "monthly": "M",
             }.get(temporal_granularity, "Q")
             entity_slug = entity_name.lower().replace(" ", "_")
-            plot_path = f"{plot_dir}/trajectories-{entity_slug}-{granularity_suffix}-{timestamp}.png"
-        plt.savefig(plot_path, dpi=300, bbox_inches="tight", format="png")
-        print(f"Entity trajectory plot saved: {plot_path}")
+            actual_plot_path = Path(plot_dir) / f"trajectories-{entity_slug}-{granularity_suffix}-{timestamp}.png"
 
-    if save_csv:
-        # Only save the trajectories actually plotted (df_plot), not the
-        # full movement_df. The full movement data remains available in
-        # the movement CSVs.
+    if csv_path is not None:
+        actual_csv_path = Path(csv_path)
+    elif save_csv:
+        warnings.warn(
+            "save_csv/csv_dir/csv_filename are deprecated. Use csv_path instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # use legacy helper for default filename generation
         target_dir = csv_dir if csv_dir else f"{plot_dir}/../results"
         if csv_filename:
-            os.makedirs(target_dir, exist_ok=True)
-            csv_path = os.path.join(target_dir, csv_filename)
-            if not csv_path.lower().endswith(".csv"):
-                csv_path = f"{csv_path}.csv"
-            df_plot.to_csv(csv_path, index=False)
+            actual_csv_path = Path(target_dir) / csv_filename
         else:
-            csv_path = save_dataframe_to_csv(
+            # fall back to helper which generates timestamped filename
+            csv_path_str = save_dataframe_to_csv(
                 df_plot,
                 artifact="trajectories",
                 entity_name=entity_name,
                 temporal_granularity=temporal_granularity,
                 output_dir=target_dir,
             )
-        print(f"Trajectories CSV saved: {csv_path}")
+            print(f"Trajectories CSV saved: {csv_path_str}")
+            actual_csv_path = None  # already saved by helper
+
+    # save plot if path determined
+    if actual_plot_path:
+        actual_plot_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(actual_plot_path, dpi=300, bbox_inches="tight", format="png")
+        print(f"Entity trajectory plot saved: {actual_plot_path}")
+
+    # save CSV if path determined (and not already saved by helper)
+    if actual_csv_path:
+        actual_csv_path.parent.mkdir(parents=True, exist_ok=True)
+        df_plot.to_csv(actual_csv_path, index=False)
+        print(f"Trajectories CSV saved: {actual_csv_path}")
 
     if close_fig:
         plt.close(fig)

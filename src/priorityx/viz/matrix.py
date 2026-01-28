@@ -1,6 +1,7 @@
 """Priority matrix scatter plot visualization."""
 
-from typing import List, Optional, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple, Union
 import warnings
 
 import matplotlib.pyplot as plt
@@ -43,6 +44,10 @@ def plot_priority_matrix(
     force_show_labels: Optional[List[str]] = None,
     force_hide_labels: Optional[List[str]] = None,
     skip_label_min_count: int = 0,
+    # simplified path API (preferred)
+    plot_path: Union[str, Path, None] = None,
+    csv_path: Union[str, Path, None] = None,
+    # deprecated: use plot_path/csv_path instead
     save_plot: bool = False,
     save_csv: bool = False,
     plot_dir: str = "results/plot",
@@ -74,10 +79,12 @@ def plot_priority_matrix(
         force_show_labels: List of entity names to always label
         force_hide_labels: List of entity names to never label
         skip_label_min_count: Skip labeling entities with count < threshold
-        save_plot: Save plot to file
-        save_csv: Save data to CSV
-        plot_dir: Output directory for plot files
-        csv_dir: Output directory for CSV files
+        plot_path: Path to save plot (accepts Path or str). If provided, saves plot.
+        csv_path: Path to save CSV (accepts Path or str). If provided, saves CSV.
+        save_plot: [DEPRECATED] Use plot_path instead. Save plot to file.
+        save_csv: [DEPRECATED] Use csv_path instead. Save data to CSV.
+        plot_dir: [DEPRECATED] Use plot_path instead. Output directory for plot files.
+        csv_dir: [DEPRECATED] Use csv_path instead. Output directory for CSV files.
         temporal_granularity: Time granularity ('quarterly', 'yearly', 'semiannual', 'monthly')
         close_fig: Close the figure before returning (set True if you see duplicate inline renders)
 
@@ -88,13 +95,12 @@ def plot_priority_matrix(
         >>> # basic plot
         >>> fig = plot_priority_matrix(results_df, entity_name="Service")
 
-        >>> # with custom bubble sizing and labels
+        >>> # save with simplified path API
         >>> fig = plot_priority_matrix(
         ...     results_df,
         ...     entity_name="Component",
-        ...     bubble_col="count",
-        ...     top_n_labels=10,
-        ...     save_plot=True
+        ...     plot_path=PLOT_DIR / "chart.png",
+        ...     csv_path=CSV_DIR / "data.csv",
         ... )
     """
     # make a copy to avoid modifying original
@@ -427,14 +433,23 @@ def plot_priority_matrix(
             zorder=3,
         )
 
-    # save plot if requested
-    if save_plot:
-        import os
+    # determine actual save paths
+    actual_plot_path: Optional[Path] = None
+    actual_csv_path: Optional[Path] = None
+
+    # new API takes precedence
+    if plot_path is not None:
+        actual_plot_path = Path(plot_path)
+    elif save_plot:
+        warnings.warn(
+            "save_plot/plot_dir/plot_filename are deprecated. Use plot_path instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         from datetime import datetime
 
-        os.makedirs(plot_dir, exist_ok=True)
         if plot_filename:
-            save_path = os.path.join(plot_dir, plot_filename)
+            actual_plot_path = Path(plot_dir) / plot_filename
         else:
             timestamp = datetime.now().strftime("%Y%m%d")
             granularity_suffix = {
@@ -443,21 +458,20 @@ def plot_priority_matrix(
                 "semiannual": "S",
                 "monthly": "M",
             }.get(temporal_granularity, "Q")
-            save_path = f"{plot_dir}/priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
+            actual_plot_path = Path(plot_dir) / f"priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.png"
 
-        plt.savefig(save_path, dpi=300, bbox_inches="tight", format="png")
-        print(f"Plot saved: {save_path}")
-
-    # save CSV if requested
-    if save_csv:
-        import os
+    if csv_path is not None:
+        actual_csv_path = Path(csv_path)
+    elif save_csv:
+        warnings.warn(
+            "save_csv/csv_dir/csv_filename are deprecated. Use csv_path instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         from datetime import datetime
 
-        os.makedirs(csv_dir, exist_ok=True)
         if csv_filename:
-            csv_path = os.path.join(csv_dir, csv_filename)
-            if not csv_path.lower().endswith(".csv"):
-                csv_path = f"{csv_path}.csv"
+            actual_csv_path = Path(csv_dir) / csv_filename
         else:
             timestamp = datetime.now().strftime("%Y%m%d")
             granularity_suffix = {
@@ -466,8 +480,17 @@ def plot_priority_matrix(
                 "semiannual": "S",
                 "monthly": "M",
             }.get(temporal_granularity, "Q")
-            csv_path = f"{csv_dir}/priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.csv"
+            actual_csv_path = Path(csv_dir) / f"priority_matrix-{entity_name.lower()}-{granularity_suffix}-{timestamp}.csv"
 
+    # save plot if path determined
+    if actual_plot_path:
+        actual_plot_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(actual_plot_path, dpi=300, bbox_inches="tight", format="png")
+        print(f"Plot saved: {actual_plot_path}")
+
+    # save CSV if path determined
+    if actual_csv_path:
+        actual_csv_path.parent.mkdir(parents=True, exist_ok=True)
         # save key columns, plus any custom X/Y columns if present
         cols_to_save = [
             "entity",
@@ -480,8 +503,8 @@ def plot_priority_matrix(
             if col not in cols_to_save:
                 cols_to_save.append(col)
 
-        df[[c for c in cols_to_save if c in df.columns]].to_csv(csv_path, index=False)
-        print(f"CSV saved: {csv_path}")
+        df[[c for c in cols_to_save if c in df.columns]].to_csv(actual_csv_path, index=False)
+        print(f"CSV saved: {actual_csv_path}")
 
     fig = plt.gcf()
     if close_fig:

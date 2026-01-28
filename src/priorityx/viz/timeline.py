@@ -1,6 +1,7 @@
 """Transition timeline heatmap visualization."""
 
-from typing import List, Literal, Optional, Tuple
+from pathlib import Path
+from typing import List, Literal, Optional, Tuple, Union
 import warnings
 
 import matplotlib.pyplot as plt
@@ -30,6 +31,10 @@ def plot_transition_timeline(
     sort_by_risk_first: bool = True,
     entity_name: str = "Entity",
     show_all_periods: bool = False,
+    # simplified path API (preferred)
+    plot_path: Union[str, Path, None] = None,
+    csv_path: Union[str, Path, None] = None,
+    # deprecated: use plot_path/csv_path instead
     save_plot: bool = False,
     save_csv: bool = False,
     plot_dir: str = "results/plot",
@@ -60,10 +65,12 @@ def plot_transition_timeline(
         sort_by_risk_first: Sort by risk level first (True) or count first (False)
         entity_name: Name for y-axis label
         show_all_periods: Include starting period even if no transitions
-        save_plot: Save plot to file
-        save_csv: Save data to CSV
-        plot_dir: Output directory for plot files
-        csv_dir: Output directory for CSV files
+        plot_path: Path to save plot (accepts Path or str). If provided, saves plot.
+        csv_path: Path to save CSV (accepts Path or str). If provided, saves CSV.
+        save_plot: [DEPRECATED] Use plot_path instead. Save plot to file.
+        save_csv: [DEPRECATED] Use csv_path instead. Save data to CSV.
+        plot_dir: [DEPRECATED] Use plot_path instead. Output directory for plot files.
+        csv_dir: [DEPRECATED] Use csv_path instead. Output directory for CSV files.
         temporal_granularity: Time granularity for file naming
         movement_df: Optional movement DataFrame for priority calculation
         close_fig: Close the figure before returning (set True if you see duplicate inline renders)
@@ -429,16 +436,23 @@ def plot_transition_timeline(
     ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
     plt.tight_layout()
 
-    # save plot if requested
-    if save_plot:
-        import os
+    # determine actual save paths
+    actual_plot_path: Optional[Path] = None
+    actual_csv_path: Optional[Path] = None
+
+    # new API takes precedence
+    if plot_path is not None:
+        actual_plot_path = Path(plot_path)
+    elif save_plot:
+        warnings.warn(
+            "save_plot/plot_dir/plot_filename are deprecated. Use plot_path instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         from datetime import datetime
 
-        os.makedirs(plot_dir, exist_ok=True)
         if plot_filename:
-            plot_path = os.path.join(plot_dir, plot_filename)
-            if not plot_path.lower().endswith(".png"):
-                plot_path = f"{plot_path}.png"
+            actual_plot_path = Path(plot_dir) / plot_filename
         else:
             timestamp = datetime.now().strftime("%Y%m%d")
             granularity_suffix = {
@@ -448,20 +462,20 @@ def plot_transition_timeline(
                 "monthly": "M",
             }.get(temporal_granularity, "Q")
             entity_slug = entity_name.lower().replace(" ", "_")
-            plot_path = f"{plot_dir}/transition_timeline-{entity_slug}-{granularity_suffix}-{timestamp}.png"
-        plt.savefig(plot_path, dpi=300, bbox_inches="tight", format="png")
-        print(f"Transition plot saved: {plot_path}")
+            actual_plot_path = Path(plot_dir) / f"transition_timeline-{entity_slug}-{granularity_suffix}-{timestamp}.png"
 
-    # save CSV if requested
-    if save_csv:
-        import os
+    if csv_path is not None:
+        actual_csv_path = Path(csv_path)
+    elif save_csv:
+        warnings.warn(
+            "save_csv/csv_dir/csv_filename are deprecated. Use csv_path instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         from datetime import datetime
 
-        os.makedirs(csv_dir, exist_ok=True)
         if csv_filename:
-            csv_path = os.path.join(csv_dir, csv_filename)
-            if not csv_path.lower().endswith(".csv"):
-                csv_path = f"{csv_path}.csv"
+            actual_csv_path = Path(csv_dir) / csv_filename
         else:
             timestamp = datetime.now().strftime("%Y%m%d")
             granularity_suffix = {
@@ -471,19 +485,25 @@ def plot_transition_timeline(
                 "monthly": "M",
             }.get(temporal_granularity, "Q")
             entity_slug = entity_name.lower().replace(" ", "_")
-            csv_path = f"{csv_dir}/transitions-{entity_slug}-{granularity_suffix}-{timestamp}.csv"
+            actual_csv_path = Path(csv_dir) / f"transitions-{entity_slug}-{granularity_suffix}-{timestamp}.csv"
 
+    # save plot if path determined
+    if actual_plot_path:
+        actual_plot_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(actual_plot_path, dpi=300, bbox_inches="tight", format="png")
+        print(f"Transition plot saved: {actual_plot_path}")
+
+    # save CSV if path determined
+    if actual_csv_path:
+        actual_csv_path.parent.mkdir(parents=True, exist_ok=True)
         df_to_save = df
-        # For monthly outputs, expose a clearer ``transition_month`` label
-        # in the CSV while keeping the internal transition_quarter column
-        # for code that relies on it.
+        # for monthly outputs, rename column
         if temporal_granularity == "monthly" and "transition_quarter" in df.columns:
             df_to_save = df.copy().rename(
                 columns={"transition_quarter": "transition_month"}
             )
-
-        df_to_save.to_csv(csv_path, index=False)
-        print(f"Transitions CSV saved: {csv_path}")
+        df_to_save.to_csv(actual_csv_path, index=False)
+        print(f"Transitions CSV saved: {actual_csv_path}")
 
     if close_fig:
         plt.close(fig)

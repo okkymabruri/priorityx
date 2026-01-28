@@ -1,5 +1,6 @@
 # %%
 # it incident monitoring example (data pulled from GitHub raw)
+from pathlib import Path
 
 import pandas as pd
 
@@ -7,10 +8,13 @@ import priorityx as px
 from priorityx.utils.helpers import (
     display_quadrant_summary,
     display_transition_summary,
-    save_dataframe_to_csv,
 )
 
 RAW_DATA_URL = "https://raw.githubusercontent.com/okkymabruri/priorityx/main/examples/incidents/incidents.csv"
+
+# output directories
+PLOT_DIR = Path("plot")
+CSV_DIR = Path("results")
 
 # load data from GitHub raw
 df = pd.read_csv(RAW_DATA_URL, parse_dates=["date"])
@@ -25,7 +29,7 @@ print("PRIORITY MATRIX ANALYSIS")
 
 temporal_granularity = "quarterly"
 entity_name = "Service"
-results, stats = px.fit_priority_matrix(
+results = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
@@ -35,17 +39,17 @@ results, stats = px.fit_priority_matrix(
 )
 
 print(f"\nAnalyzed {len(results)} services")
-print(results[["entity", "Random_Intercept", "Random_Slope", "count", "quadrant"]])
+print(results[["entity", "x_score", "y_score", "count", "quadrant"]])
 
 display_quadrant_summary(results, entity_name=entity_name, min_count=0)
 
-# visualize
+# visualize with simplified path API
 px.plot_priority_matrix(
     results,
     entity_name=entity_name,
     show_quadrant_labels=True,
-    save_plot=True,
-    save_csv=True,
+    plot_path=PLOT_DIR / "priority_matrix-service-Q.png",
+    csv_path=CSV_DIR / "priority_matrix-service-Q.csv",
 )
 
 # track movement
@@ -59,6 +63,7 @@ movement, meta = px.track_movement(
     quarters=["2022-01-01", "2025-01-01"],
     min_total_count=20,
     temporal_granularity=temporal_granularity,
+    return_metadata=True,
 )
 
 print(
@@ -66,21 +71,16 @@ print(
 )
 
 # save movement
-movement_path = save_dataframe_to_csv(
-    movement,
-    artifact="trajectories",
-    entity_name=entity_name,
-    temporal_granularity=temporal_granularity,
-)
-print(f"Movement CSV saved: {movement_path}")
+movement.to_csv(CSV_DIR / "trajectories-service-Q.csv", index=False)
+print(f"Movement CSV saved: {CSV_DIR / 'trajectories-service-Q.csv'}")
 
-# visualize entity trajectories
+# visualize entity trajectories with simplified path API
 px.plot_entity_trajectories(
     movement,
     entity_name=entity_name,
     max_entities=5,
-    save_plot=True,
-    save_csv=True,
+    plot_path=PLOT_DIR / "trajectories-service-Q.png",
+    csv_path=CSV_DIR / "trajectories-service-Q.csv",
 )
 
 # detect transitions
@@ -92,9 +92,9 @@ display_transition_summary(transitions, entity_name=entity_name)
 px.plot_transition_timeline(
     transitions,
     entity_name=entity_name,
-    save_plot=True,
-    save_csv=True,
     movement_df=movement,
+    plot_path=PLOT_DIR / "transitions-service-Q.png",
+    csv_path=CSV_DIR / "transitions-service-Q.csv",
 )
 
 critical_transitions = transitions[transitions["risk_level"] == "critical"]
@@ -135,6 +135,6 @@ if len(critical_transitions) > 0:
         px.display_transition_drivers(driver_analysis)
 
 print()
-print("Analysis complete. Check plot/ and results/ in the current working directory.")
+print(f"Analysis complete. Check {PLOT_DIR}/ and {CSV_DIR}/")
 
 # %%

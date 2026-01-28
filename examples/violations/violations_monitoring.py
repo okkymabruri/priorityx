@@ -1,6 +1,7 @@
 # %%
 import random
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pandas as pd
 
@@ -8,10 +9,13 @@ import priorityx as px
 from priorityx.utils.helpers import (
     display_quadrant_summary,
     display_transition_summary,
-    save_dataframe_to_csv,
 )
 
 random.seed(42)
+
+# output directories
+PLOT_DIR = Path("plot")
+CSV_DIR = Path("results")
 
 # departments
 departments = [
@@ -60,7 +64,7 @@ df = pd.DataFrame(data)
 temporal_granularity = "quarterly"
 entity_name = "Department"
 
-results, stats = px.fit_priority_matrix(
+results = px.fit_priority_matrix(
     df,
     entity_col="department",
     timestamp_col="date",
@@ -68,16 +72,17 @@ results, stats = px.fit_priority_matrix(
     min_observations=6,
 )
 print("Compliance Violations Priority Matrix:")
-print(results[["entity", "Random_Intercept", "Random_Slope", "count", "quadrant"]])
+print(results[["entity", "x_score", "y_score", "count", "quadrant"]])
 
 display_quadrant_summary(results, entity_name=entity_name, min_count=0)
 
+# visualize with simplified path API
 px.plot_priority_matrix(
     results,
     entity_name=entity_name,
     show_quadrant_labels=True,
-    save_plot=True,
-    save_csv=True,
+    plot_path=PLOT_DIR / "priority_matrix-department-Q.png",
+    csv_path=CSV_DIR / "priority_matrix-department-Q.csv",
 )
 
 movement, meta = px.track_movement(
@@ -87,29 +92,28 @@ movement, meta = px.track_movement(
     quarters=["2023-01-01", "2025-01-01"],
     min_total_count=5,
     temporal_granularity=temporal_granularity,
+    return_metadata=True,
 )
 
-movement_path = save_dataframe_to_csv(
-    movement,
-    artifact="trajectories",
-    entity_name=entity_name,
-    temporal_granularity=temporal_granularity,
-)
-print(f"Movement CSV saved: {movement_path}")
+# save movement
+movement.to_csv(CSV_DIR / "trajectories-department-Q.csv", index=False)
+print(f"Movement CSV saved: {CSV_DIR / 'trajectories-department-Q.csv'}")
+
 transitions = px.extract_transitions(movement, focus_risk_increasing=True)
 
 print(f"\nDetected {len(transitions)} risk-increasing transitions")
 display_transition_summary(transitions, entity_name=entity_name)
 
+# visualize with simplified path API
 px.plot_transition_timeline(
     transitions,
     entity_name=entity_name,
-    save_plot=True,
-    save_csv=True,
     movement_df=movement,
+    plot_path=PLOT_DIR / "transitions-department-Q.png",
+    csv_path=CSV_DIR / "transitions-department-Q.csv",
 )
 
 print()
-print("Outputs saved to plot/ and results/ in the current working directory.")
+print(f"Outputs saved to {PLOT_DIR}/ and {CSV_DIR}/")
 
 # %%

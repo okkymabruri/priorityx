@@ -97,8 +97,16 @@ def _fit_single_glmm(
     df = df.copy()
 
     if not verbose:
+        # suppress statsmodels convergence warnings
         warnings.filterwarnings(
             "ignore", message="VB fitting did not converge", category=UserWarning
+        )
+        warnings.filterwarnings(
+            "ignore", message="Laplace fitting did not converge", category=UserWarning
+        )
+        # suppress numpy overflow warnings from statsmodels internals
+        warnings.filterwarnings(
+            "ignore", message="overflow encountered", category=RuntimeWarning
         )
 
     # ensure timestamp column is datetime
@@ -370,17 +378,20 @@ def _fit_single_glmm(
     elif temporal_granularity == "monthly" and n_years >= 2:
         formula += " + C(month)"
     elif temporal_granularity == "quarterly" and n_years == 1:
-        print(
-            "  Warning: Single-year quarterly data detected, skipping seasonal dummies to avoid multicollinearity"
-        )
+        if verbose:
+            print(
+                "  Warning: Single-year quarterly data detected, skipping seasonal dummies to avoid multicollinearity"
+            )
     elif temporal_granularity == "semiannual" and n_years == 1:
-        print(
-            "  Warning: Single-year semiannual data detected, skipping seasonal dummies to avoid multicollinearity"
-        )
+        if verbose:
+            print(
+                "  Warning: Single-year semiannual data detected, skipping seasonal dummies to avoid multicollinearity"
+            )
     elif temporal_granularity == "monthly" and n_years == 1:
-        print(
-            "  Warning: Single-year monthly data detected, skipping seasonal dummies to avoid multicollinearity"
-        )
+        if verbose:
+            print(
+                "  Warning: Single-year monthly data detected, skipping seasonal dummies to avoid multicollinearity"
+            )
 
     # random effects: intercept + slope per entity
     random_formulas = {

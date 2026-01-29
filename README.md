@@ -23,7 +23,7 @@ import priorityx as px
 df = pd.read_csv("data.csv")
 
 # Default: volume x growth (single GLMM)
-results, stats = px.fit_priority_matrix(
+results = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
@@ -38,7 +38,7 @@ px.plot_priority_matrix(results, entity_name="Service", save_plot=True)
 
 ```python
 # Custom Y axis: volume × resolution_days (two GLMMs)
-results, _ = px.fit_priority_matrix(
+results = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
@@ -46,7 +46,7 @@ results, _ = px.fit_priority_matrix(
 )
 
 # Custom both axes: disputed_amount × paid_amount
-results, _ = px.fit_priority_matrix(
+results = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",

@@ -17,7 +17,7 @@ df = pd.read_csv("your_data.csv")
 df["date"] = pd.to_datetime(df["date"])
 
 # fit priority matrix
-results, stats = px.fit_priority_matrix(
+results = px.fit_priority_matrix(
     df,
     entity_col="service",      # your entity column
     timestamp_col="date",      # your date column
@@ -35,7 +35,7 @@ px.plot_priority_matrix(results, entity_name="Service", save_plot=True)
 import priorityx as px
 
 # track movement over time
-movement, meta = px.track_movement(
+movement = px.track_movement(
     df,
     entity_col="service",
     timestamp_col="date",

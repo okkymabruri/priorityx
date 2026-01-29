@@ -27,23 +27,36 @@ count ~ time + seasonal_effects + (1 + time | entity)
 - Random effects: vcp_p = 3.5 (relaxed for boundary behavior)
 - Fixed effects: fe_p = 3.0
 
+### Understanding x_score and y_score
+
+The priority matrix axes represent **entity-specific deviations** from population trends:
+
+| Score | GLMM Component | Interpretation |
+|-------|----------------|----------------|
+| x_score | Random intercept | Entity's baseline volume relative to peers |
+| y_score | Random slope | Entity's growth trajectory relative to peers |
+
+**Scale interpretation:**
+- **Poisson models** (count-based): Scores are on log-scale. A value of 0.5 means ~65% higher than average (exp(0.5) ≈ 1.65).
+- **Gaussian/Gamma models** (metric-based): Scores are z-standardized for comparability across metrics.
+
 ### Quadrant Classification
 
 Entities classified based on random effects:
 
-**Q1 (Critical):** intercept > 0, slope > 0, count ≥ 50
+**Q1 (Critical):** x_score > 0, y_score > 0, count ≥ 50
 - High volume, accelerating growth
 - Requires immediate attention
 
-**Q2 (Investigate):** intercept ≤ 0, slope > 0
+**Q2 (Investigate):** x_score ≤ 0, y_score > 0
 - Low volume but growing rapidly
 - Emerging issues to watch
 
-**Q3 (Monitor):** intercept ≤ 0, slope ≤ 0
+**Q3 (Monitor):** x_score ≤ 0, y_score ≤ 0
 - Low volume, stable or declining
 - Routine monitoring
 
-**Q4 (Low Priority):** intercept > 0, slope ≤ 0
+**Q4 (Low Priority):** x_score > 0, y_score ≤ 0
 - High volume but not accelerating
 - Persistent baseline issues
 

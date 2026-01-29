@@ -7,17 +7,26 @@
 ```python
 import priorityx as px
 
-# Default: volume × growth (single GLMM)
-results, stats = px.fit_priority_matrix(
+# Default: volume × growth (single GLMM) - simple form
+results = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
     temporal_granularity="quarterly",
 )
-# Returns: entity, x_score, y_score, count, quadrant
+# Returns: DataFrame with entity, x_score, y_score, count, quadrant
+
+# Get statistics too (advanced)
+results, stats = px.fit_priority_matrix(
+    df,
+    entity_col="service",
+    timestamp_col="date",
+    temporal_granularity="quarterly",
+    return_stats=True,  # returns (DataFrame, dict) tuple
+)
 
 # Custom Y axis: volume × resolution_days (two GLMMs)
-results, stats = px.fit_priority_matrix(
+results = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
@@ -25,7 +34,7 @@ results, stats = px.fit_priority_matrix(
 )
 
 # Custom both axes with Gamma family for right-skewed data
-results, stats = px.fit_priority_matrix(
+results = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
@@ -55,11 +64,12 @@ Unified entry point for GLMM-based entity prioritization. Supports count-based (
 - `temporal_granularity`: "yearly", "quarterly", "semiannual", or "monthly"
 - `vcp_p`: Random effects prior scale (default: 3.5)
 - `fe_p`: Fixed effects prior scale (default: 3.0)
+- `return_stats`: If True, returns (DataFrame, dict) tuple (default: False)
 
 **Returns:**
 
-- `results`: DataFrame with `entity`, `x_score`, `y_score`, `count`, `quadrant`
-- `stats`: Dictionary with model statistics
+- Default (`return_stats=False`): DataFrame with `entity`, `x_score`, `y_score`, `count`, `quadrant`
+- With `return_stats=True`: Tuple of (DataFrame, stats dict)
 
 **Family Selection:**
 
@@ -148,30 +158,101 @@ Tests ranking stability across weight variations.
 
 ## Tracking Functions
 
-### track_cumulative_movement
+### track_movement
 
 ```python
 import priorityx as px
 
-movement, meta = px.track_cumulative_movement(
+# Simple form (most users)
+movement = px.track_movement(
     df,
-    entity_col,
-    timestamp_col,
+    entity_col="service",
+    timestamp_col="date",
     quarters=None,
     min_total_count=20,
-    decline_window_quarters=6,
     temporal_granularity="quarterly",
-    vcp_p=3.5,
-    fe_p=3.0
+)
+
+# Get metadata too (advanced)
+movement, meta = px.track_movement(
+    df,
+    entity_col="service",
+    timestamp_col="date",
+    min_total_count=20,
+    temporal_granularity="quarterly",
+    return_metadata=True,  # returns (DataFrame, dict) tuple
 )
 ```
 
 Tracks entity movement through priority quadrants over time.
 
+**Parameters:**
+
+- `df`: Input pandas DataFrame
+- `entity_col`: Entity identifier column name
+- `timestamp_col`: Date column name
+- `quarters`: Period specification (None = auto-detect)
+- `min_total_count`: Minimum total count for inclusion (default: 20)
+- `decline_window_quarters`: Max quarters after last observation (default: 6)
+- `temporal_granularity`: "quarterly" or "monthly"
+- `vcp_p`: Random effects prior scale (default: 3.5)
+- `fe_p`: Fixed effects prior scale (default: 3.0)
+- `return_metadata`: If True, returns (DataFrame, dict) tuple (default: False)
+
 **Returns:**
 
-- `movement`: DataFrame with quarterly X/Y positions
-- `meta`: Dictionary with tracking metadata
+- Default (`return_metadata=False`): DataFrame with quarterly X/Y positions
+- With `return_metadata=True`: Tuple of (DataFrame, metadata dict)
+
+### load_or_track_movement
+
+```python
+import priorityx as px
+
+# Simple form - compute or load from cache
+movement = px.load_or_track_movement(
+    df,
+    entity_name="issue",
+    entity_col="service",
+    timestamp_col="date",
+    quarters=["2024-01-01", "2025-01-01"],
+    min_total_count=20,
+    output_dir="results/csv",
+)
+
+# Get CSV path for logging
+movement, csv_path = px.load_or_track_movement(
+    df,
+    entity_name="issue",
+    entity_col="service",
+    timestamp_col="date",
+    quarters=["2024-01-01", "2025-01-01"],
+    min_total_count=20,
+    output_dir="results/csv",
+    return_path=True,
+)
+```
+
+Caches movement tracking results to disk. On subsequent runs, loads from
+cache if available (`use_cache=True` by default).
+
+**Parameters:**
+
+- `df`: Input DataFrame
+- `entity_name`: Friendly name for file naming
+- `entity_col`: Entity column name
+- `timestamp_col`: Timestamp column name
+- `quarters`: Period specification
+- `min_total_count`: Minimum count threshold
+- `temporal_granularity`: "quarterly" or "monthly" (default: "quarterly")
+- `output_dir`: Cache directory (default: "results/csv")
+- `use_cache`: Load from cache if available (default: True)
+- `return_path`: If True, returns (DataFrame, csv_path) tuple (default: False)
+
+**Returns:**
+
+- Default (`return_path=False`): DataFrame with movement data
+- With `return_path=True`: Tuple of (DataFrame, csv_path)
 
 ### extract_transitions
 
@@ -228,7 +309,7 @@ Analyzes root causes of a quadrant transition.
 
 **Parameters:**
 
-- `movement_df`: Output from track_cumulative_movement()
+- `movement_df`: Output from track_movement()
 - `df_raw`: Raw event data (pandas DataFrame)
 - `entity_name`: Entity to analyze
 - `period_from`: Starting period (e.g., "2024-Q2", "2024-01")
@@ -282,61 +363,95 @@ Classifies supervisory priority (1=Critical, 2=Investigate, 3=Monitor, 4=Low).
 
 ```python
 import priorityx as px
+from pathlib import Path
 
+# Basic plot (no save)
 fig = px.plot_priority_matrix(
     results_df,
     entity_name="Entity",
     figsize=(16, 12),
     top_n_labels=5,
     show_quadrant_labels=False,
-    save_plot=False,
-    output_dir="plot"
+)
+
+# Save to file with simplified path API
+PLOT_DIR = Path("results/plot")
+CSV_DIR = Path("results/csv")
+
+fig = px.plot_priority_matrix(
+    results_df,
+    entity_name="issue",
+    plot_path=PLOT_DIR / "priority_matrix.png",  # Path or str
+    csv_path=CSV_DIR / "priority_matrix.csv",    # Path or str
+    close_fig=True,
 )
 ```
 
 Creates scatter plot of priority matrix.
 
+**Path Parameters:**
+
+- `plot_path`: Path to save plot (accepts Path or str). If provided, saves plot.
+- `csv_path`: Path to save CSV (accepts Path or str). If provided, saves CSV.
+
 ### plot_transition_timeline
 
 ```python
 import priorityx as px
+from pathlib import Path
 
+# Basic plot
 fig = px.plot_transition_timeline(
     transitions_df,
     entity_name="Entity",
     filter_risk_levels=["critical", "high"],
     max_entities=20,
-    save_plot=False,
-    output_dir="plot",
-    movement_df=movement_df
+    movement_df=movement_df,
+)
+
+# Save with simplified path API
+fig = px.plot_transition_timeline(
+    transitions_df,
+    entity_name="issue",
+    filter_risk_levels=["critical", "high"],
+    max_entities=20,
+    movement_df=movement_df,
+    plot_path=PLOT_DIR / "transitions.png",
+    csv_path=CSV_DIR / "transitions.csv",
+    close_fig=True,
 )
 ```
 
 Creates timeline heatmap of transitions. Passing `movement_df` is required to compute the Crisis/Investigate/Monitor/Low priority tiers and spike markers (`*X`, `*Y`, `*XY`). Omitting it falls back to legacy risk-level tags.
 
+**Path Parameters:**
+
+- `plot_path`: Path to save plot (accepts Path or str). If provided, saves plot.
+- `csv_path`: Path to save CSV (accepts Path or str). If provided, saves CSV.
+
 ### plot_entity_trajectories
 
 ```python
 import priorityx as px
+from pathlib import Path
 
-# Basic usage
+# Basic usage (no save)
 fig = px.plot_entity_trajectories(
     movement_df,
     entity_name="Entity",
     max_entities=10,
-    save_plot=False,
-    plot_dir="plot"
 )
 
-# Auto-select top movers (recommended)
+# Auto-select top movers with simplified path API (recommended)
 fig = px.plot_entity_trajectories(
     movement_df,
     entity_name="product",
     highlight_top_n=4,                   # auto-select top 4 entities
     highlight_by="trajectory_distance",  # by path length (or "total_movement")
     recent_periods=6,                    # limit to last 6 periods
-    save_plot=True,
-    plot_dir="results/plot",
+    plot_path=PLOT_DIR / "trajectories.png",
+    csv_path=CSV_DIR / "trajectories.csv",
+    close_fig=True,
 )
 ```
 
@@ -344,7 +459,7 @@ Creates trajectory plot showing entity paths through priority space.
 
 **Parameters:**
 
-- `movement_df`: Output from track_cumulative_movement()
+- `movement_df`: Output from track_movement()
 - `entity_name`: Label for entity type (e.g., "product", "service")
 - `max_entities`: Maximum entities to show (default: 10)
 - `highlight_entities`: List of specific entities to highlight
@@ -354,10 +469,8 @@ Creates trajectory plot showing entity paths through priority space.
   - `"total_movement"`: Manhattan distance (sum of |dx| + |dy|)
 - `recent_periods`: Limit trajectory to last N periods (useful for long histories)
 - `temporal_granularity`: "quarterly", "monthly", etc.
-- `save_plot`: Save to file (default: False)
-- `save_csv`: Save trajectory data to CSV (default: False)
-- `plot_dir`: Output directory for plots
-- `csv_dir`: Output directory for CSVs
+- `plot_path`: Path to save plot (accepts Path or str). If provided, saves plot.
+- `csv_path`: Path to save CSV (accepts Path or str). If provided, saves CSV.
 - `close_fig`: Close figure after rendering (set True for Jupyter to avoid duplicates)
 
 ---

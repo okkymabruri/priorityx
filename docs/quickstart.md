@@ -35,7 +35,7 @@ px.plot_priority_matrix(results, entity_name="Service", save_plot=True)
 import priorityx as px
 
 # track movement over time
-movement, meta = px.track_cumulative_movement(
+movement, meta = px.track_movement(
     df,
     entity_col="service",
     timestamp_col="date",

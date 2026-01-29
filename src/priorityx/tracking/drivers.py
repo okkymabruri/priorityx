@@ -83,8 +83,10 @@ def _detect_subcategory_columns(
                 continue
 
             series = df[col]
-            if pd.api.types.is_object_dtype(series) or isinstance(
-                series.dtype, pd.CategoricalDtype
+            if (
+                pd.api.types.is_object_dtype(series)
+                or pd.api.types.is_string_dtype(series)
+                or isinstance(series.dtype, pd.CategoricalDtype)
             ):
                 unique_vals = series.nunique(dropna=True)
                 if 1 < unique_vals <= max_unique:

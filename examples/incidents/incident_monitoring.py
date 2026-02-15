@@ -1,5 +1,5 @@
 # %%
-# it incident monitoring example (data pulled from GitHub raw)
+# it incident monitoring example
 from pathlib import Path
 
 import pandas as pd
@@ -10,18 +10,29 @@ from priorityx.utils.helpers import (
     display_transition_summary,
 )
 
-RAW_DATA_URL = "https://raw.githubusercontent.com/okkymabruri/priorityx/main/examples/incidents/incidents.csv"
+BASE_DIR = Path(__file__).resolve().parent
 
-# output directories
-PLOT_DIR = Path("plot")
-CSV_DIR = Path("results")
+# output directories (keep outputs inside examples/incidents/results)
+PLOT_DIR = BASE_DIR / "results" / "plot"
+CSV_DIR = BASE_DIR / "results" / "csv"
 
-# load data from GitHub raw
-df = pd.read_csv(RAW_DATA_URL, parse_dates=["date"])
-print("Loaded incidents from GitHub raw URL")
+PLOT_DIR.mkdir(parents=True, exist_ok=True)
+CSV_DIR.mkdir(parents=True, exist_ok=True)
+
+DATA_PATH = BASE_DIR / "incidents.csv"
+
+# upstream dataset (raw GitHub)
+DATA_URL = (
+    "https://raw.githubusercontent.com/okkymabruri/priorityx/main/"
+    "examples/incidents/incidents.csv"
+)
+
+# load data
+df = pd.read_csv(DATA_URL, parse_dates=["opened_at", "closed_at"])
+print(f"Loaded incidents from: {DATA_URL}")
 
 print(f"Loaded {len(df)} incidents for {df['service'].nunique()} services")
-print(f"Date range: {df['date'].min()} to {df['date'].max()}")
+print(f"Date range: {df['opened_at'].min()} to {df['opened_at'].max()}")
 
 # fit priority matrix
 print()
@@ -32,7 +43,7 @@ entity_name = "Service"
 results = px.fit_priority_matrix(
     df,
     entity_col="service",
-    timestamp_col="date",
+    timestamp_col="opened_at",
     temporal_granularity=temporal_granularity,
     min_observations=8,
     min_total_count=20,
@@ -59,8 +70,8 @@ print("CUMULATIVE MOVEMENT TRACKING")
 movement, meta = px.track_movement(
     df,
     entity_col="service",
-    timestamp_col="date",
-    quarters=["2022-01-01", "2025-01-01"],
+    timestamp_col="opened_at",
+    quarters=["2023-01-01", "2026-01-01"],
     min_total_count=20,
     temporal_granularity=temporal_granularity,
     return_metadata=True,
@@ -127,7 +138,7 @@ if len(critical_transitions) > 0:
             quarter_from=prev_quarter,
             quarter_to=trans["transition_quarter"],
             entity_col="service",
-            timestamp_col="date",
+            timestamp_col="opened_at",
             top_n_subcategories=5,
             min_subcategory_delta=2,
         )

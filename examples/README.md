@@ -16,8 +16,9 @@ pip install git+https://github.com/okkymabruri/priorityx.git
 
 ## Running Examples
 
-**IT Incidents** (1,621 incidents, 10 services) — pulls CSV from GitHub raw
+**IT Incidents** — generate a local CSV, then run monitoring
 ```bash
+python examples/incidents/generate_incidents.py
 python examples/incidents/incident_monitoring.py
 ```
 
@@ -30,6 +31,7 @@ python examples/violations/violations_monitoring.py
 
 ## Output
 
-Results saved to:
-- `plot/` - Visualizations (PNG files)
-- `results/` - Data tables (CSV files)
+The incidents example writes results to:
+
+- `examples/incidents/results/plot/` - Visualizations (PNG files)
+- `examples/incidents/results/csv/` - Data tables (CSV files)

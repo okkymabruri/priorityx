@@ -230,39 +230,39 @@ def plot_priority_matrix(
 
     # add quadrant labels as background text
     if show_quadrant_labels:
-        # Use axes coordinates so labels stay centered even if x/y ranges are skewed.
-        # Also offset the quadrant that would be covered by the legend.
-        quadrant_centers_axes = {
-            "Q1": (0.78, 0.78),
-            "Q2": (0.22, 0.78),
-            "Q3": (0.22, 0.22),
-            "Q4": (0.78, 0.22),
+        # Place labels in data coordinates relative to the split lines (x=0, y=0)
+        # so Q3/Q4 stay below the x-axis even when y-limits are skewed.
+        xmin, xmax = ax.get_xlim()
+        ymin, ymax = ax.get_ylim()
+        # pad is interpreted as the fraction of quadrant span to keep as margin
+        # from the split lines (x=0,y=0). So 0.25 => place labels 75% into quadrant.
+        x_pad = 0.25
+        y_pad = 0.25
+        x_pos = 1.0 - x_pad
+        y_pos = 1.0 - y_pad
+
+        quadrant_centers_data = {
+            "Q1": (0.0 + x_pos * (xmax - 0.0), 0.0 + y_pos * (ymax - 0.0)),
+            "Q2": (0.0 + x_pos * (xmin - 0.0), 0.0 + y_pos * (ymax - 0.0)),
+            "Q3": (0.0 + x_pos * (xmin - 0.0), 0.0 + y_pos * (ymin - 0.0)),
+            "Q4": (0.0 + x_pos * (xmax - 0.0), 0.0 + y_pos * (ymin - 0.0)),
         }
 
-        # Only offset quadrant labels to avoid the legend when the legend is
-        # actually being rendered. Move both labels in same row together to stay aligned.
+        # Small horizontal nudges to avoid legend overlap while keeping labels
+        # in their correct quadrants.
         if show_legend:
             legend_loc_norm = str(legend_loc).strip().lower()
+            x_span = max(1e-9, xmax - xmin)
             if legend_loc_norm in {"lower right", "lower-right", "bottom right", "bottom-right"}:
-                # move both bottom labels up together
-                quadrant_centers_axes["Q3"] = (0.22, 0.35)
-                quadrant_centers_axes["Q4"] = (0.78, 0.35)
+                cx, cy = quadrant_centers_data["Q4"]
+                quadrant_centers_data["Q4"] = (cx - 0.12 * x_span, cy)
             elif legend_loc_norm in {"lower left", "lower-left", "bottom left", "bottom-left"}:
-                # move both bottom labels up together
-                quadrant_centers_axes["Q3"] = (0.22, 0.35)
-                quadrant_centers_axes["Q4"] = (0.78, 0.35)
-            elif legend_loc_norm in {"upper left", "upper-left", "top left", "top-left"}:
-                # move both top labels down together
-                quadrant_centers_axes["Q1"] = (0.78, 0.65)
-                quadrant_centers_axes["Q2"] = (0.22, 0.65)
-            elif legend_loc_norm in {"upper right", "upper-right", "top right", "top-right"}:
-                # move both top labels down together
-                quadrant_centers_axes["Q1"] = (0.78, 0.65)
-                quadrant_centers_axes["Q2"] = (0.22, 0.65)
+                cx, cy = quadrant_centers_data["Q3"]
+                quadrant_centers_data["Q3"] = (cx + 0.12 * x_span, cy)
 
         code_fontsize = max(1, int(quadrant_label_fontsize) + int(quadrant_code_fontsize_delta))
 
-        for q, (cx, cy) in quadrant_centers_axes.items():
+        for q, (cx, cy) in quadrant_centers_data.items():
             label = quadrant_display[q]
             # Split into a large quadrant code + smaller description to make the
             # numbering easier to read (Q1 is top-right, then counter-clockwise).
@@ -287,7 +287,7 @@ def plot_priority_matrix(
                 cx,
                 cy,
                 f"{q}\n{desc}",
-                transform=ax.transAxes,
+                transform=ax.transData,
                 ha="center",
                 va="center",
                 fontsize=quadrant_label_fontsize,
@@ -303,7 +303,7 @@ def plot_priority_matrix(
                 cx,
                 cy + dy,
                 q,
-                transform=ax.transAxes,
+                transform=ax.transData,
                 ha="center",
                 va="bottom",
                 fontsize=code_fontsize,
@@ -316,7 +316,7 @@ def plot_priority_matrix(
                 cx,
                 cy - dy,
                 desc,
-                transform=ax.transAxes,
+                transform=ax.transData,
                 ha="center",
                 va="top",
                 fontsize=quadrant_label_fontsize,

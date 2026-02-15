@@ -294,38 +294,37 @@ def plot_entity_trajectories(
 
     # quadrant dividers will be added later with improved styling
 
-    # add quadrant labels using axes transform (fixed position like matrix.py)
-    quadrant_centers_axes = {
-        "Q1": (0.78, 0.78),
-        "Q2": (0.22, 0.78),
-        "Q3": (0.22, 0.22),
-        "Q4": (0.78, 0.22),
+    # add quadrant labels in data coordinates relative to split lines (x=0, y=0)
+    xmin, xmax = ax.get_xlim()
+    ymin, ymax = ax.get_ylim()
+    # pad is interpreted as the fraction of quadrant span to keep as margin
+    # from the split lines (x=0,y=0). So 0.25 => place labels 75% into quadrant.
+    x_pad = 0.25
+    y_pad = 0.25
+    x_pos = 1.0 - x_pad
+    y_pos = 1.0 - y_pad
+
+    quadrant_centers_data = {
+        "Q1": (0.0 + x_pos * (xmax - 0.0), 0.0 + y_pos * (ymax - 0.0)),
+        "Q2": (0.0 + x_pos * (xmin - 0.0), 0.0 + y_pos * (ymax - 0.0)),
+        "Q3": (0.0 + x_pos * (xmin - 0.0), 0.0 + y_pos * (ymin - 0.0)),
+        "Q4": (0.0 + x_pos * (xmax - 0.0), 0.0 + y_pos * (ymin - 0.0)),
     }
 
-    # offset quadrant labels to avoid legend overlap (move both labels in same row together)
     if show_legend:
         legend_loc_norm = str(legend_loc).strip().lower()
+        x_span = max(1e-9, xmax - xmin)
         if legend_loc_norm in {"lower right", "lower-right", "bottom right", "bottom-right"}:
-            # move both bottom labels up together to stay aligned
-            quadrant_centers_axes["Q3"] = (0.22, 0.35)
-            quadrant_centers_axes["Q4"] = (0.78, 0.35)
+            cx, cy = quadrant_centers_data["Q4"]
+            quadrant_centers_data["Q4"] = (cx - 0.12 * x_span, cy)
         elif legend_loc_norm in {"lower left", "lower-left", "bottom left", "bottom-left"}:
-            # move both bottom labels up together to stay aligned
-            quadrant_centers_axes["Q3"] = (0.22, 0.35)
-            quadrant_centers_axes["Q4"] = (0.78, 0.35)
-        elif legend_loc_norm in {"upper left", "upper-left", "top left", "top-left"}:
-            # move both top labels down together to stay aligned
-            quadrant_centers_axes["Q1"] = (0.78, 0.65)
-            quadrant_centers_axes["Q2"] = (0.22, 0.65)
-        elif legend_loc_norm in {"upper right", "upper-right", "top right", "top-right"}:
-            # move both top labels down together to stay aligned
-            quadrant_centers_axes["Q1"] = (0.78, 0.65)
-            quadrant_centers_axes["Q2"] = (0.22, 0.65)
+            cx, cy = quadrant_centers_data["Q3"]
+            quadrant_centers_data["Q3"] = (cx + 0.12 * x_span, cy)
 
     quadrant_label_fontsize = 15
     quadrant_code_fontsize = 21  # larger for Q# code
 
-    for quadrant, (cx, cy) in quadrant_centers_axes.items():
+    for quadrant, (cx, cy) in quadrant_centers_data.items():
         label = quadrant_display[quadrant]
         # split into Q# code and description
         desc = label
@@ -344,7 +343,7 @@ def plot_entity_trajectories(
             cx,
             cy,
             f"{quadrant}\n{desc}",
-            transform=ax.transAxes,
+            transform=ax.transData,
             ha="center",
             va="center",
             fontsize=quadrant_label_fontsize,
@@ -361,7 +360,7 @@ def plot_entity_trajectories(
             cx,
             cy,
             quadrant,
-            transform=ax.transAxes,
+            transform=ax.transData,
             ha="center",
             va="bottom",
             fontsize=quadrant_code_fontsize,
@@ -375,7 +374,7 @@ def plot_entity_trajectories(
             cx,
             cy,
             desc,
-            transform=ax.transAxes,
+            transform=ax.transData,
             ha="center",
             va="top",
             fontsize=quadrant_label_fontsize,

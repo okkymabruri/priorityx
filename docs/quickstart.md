@@ -85,10 +85,10 @@ Your data needs:
 
 By default, outputs saved to:
 
-- **`plot/`** — All PNG visualizations (priority matrix, transitions, trajectories)
-- **`results/`** — All CSV data files (entity scores, transitions, movement tracking)
+- **`results/plot/`** — PNG visualizations (priority matrix, transitions, trajectories)
+- **`results/csv/`** — CSV tables (entity scores, transitions, movement tracking)
 
-You can customize output directories using the `output_dir` parameter in visualization functions.
+You can customize output directories using the `plot_dir` / `csv_dir` / `output_dir` parameters in visualization functions.
 
 ## Deterministic runs
 

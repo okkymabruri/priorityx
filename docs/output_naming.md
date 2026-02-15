@@ -16,6 +16,8 @@ By default, PriorityX writes artifacts under the current working directory, usin
 You can override these via the `plot_dir` / `csv_dir` / `output_dir`
 arguments on the plotting and helper functions.
 
+Note: repository examples may override these directories (e.g., to write artifacts under `examples/<name>/results/`).
+
 ---
 
 ## Priority Matrix

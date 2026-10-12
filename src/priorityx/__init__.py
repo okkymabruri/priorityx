@@ -36,6 +36,7 @@ from .api import (  # noqa: F401
     plot_entity_trajectories,
     plot_priority_matrix,
     plot_transition_timeline,
+    layout_transition_labels,
     set_glmm_random_seed,
     track_movement,
     track_cumulative_movement,  # deprecated alias
@@ -59,6 +60,7 @@ __all__ = [
     # Visualization
     "plot_priority_matrix",
     "plot_transition_timeline",
+    "layout_transition_labels",
     "plot_entity_trajectories",
     # Metrics
     "aggregate_entity_metrics",

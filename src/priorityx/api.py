@@ -19,7 +19,7 @@ from .tracking.drivers import (
     display_transition_drivers,
 )
 from .viz.matrix import plot_priority_matrix
-from .viz.timeline import plot_transition_timeline
+from .viz.timeline import layout_transition_labels, plot_transition_timeline
 from .viz.trajectory import plot_entity_trajectories
 
 
@@ -38,6 +38,7 @@ __all__ = [
     "display_transition_drivers",
     "plot_priority_matrix",
     "plot_transition_timeline",
+    "layout_transition_labels",
     "plot_entity_trajectories",
     # Metrics
     "aggregate_entity_metrics",

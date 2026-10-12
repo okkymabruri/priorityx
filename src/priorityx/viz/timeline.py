@@ -1,10 +1,15 @@
 """Transition timeline heatmap visualization."""
 
+from math import sqrt
 from pathlib import Path
 from typing import List, Literal, Optional, Tuple, Union
 import warnings
 
 import matplotlib.pyplot as plt
+from matplotlib.collections import PathCollection
+from matplotlib.path import Path as RenderPath
+from matplotlib.text import Annotation, Text
+from matplotlib.transforms import Bbox
 import pandas as pd
 
 from priorityx.tracking.transitions import classify_priority
@@ -15,6 +20,222 @@ warnings.filterwarnings(
     message=".*FancyArrowPatch.*",
     category=UserWarning,
 )
+
+
+class TransitionLabelLayoutWarning(UserWarning):
+    """Placement did not resolve every event label at the requested size."""
+
+
+def _marker_boxes(ax, points_to_pixels):
+    """Measure scatter markers, including their stroke, in display coordinates."""
+    boxes = []
+    for collection in ax.collections:
+        if not isinstance(collection, PathCollection) or not collection.get_visible():
+            continue
+        sizes = collection.get_sizes()
+        paths = collection.get_paths()
+        widths = collection.get_linewidths()
+        if not len(sizes) or not paths:
+            continue
+        offsets = collection.get_offset_transform().transform(collection.get_offsets())
+        for index, (x, y) in enumerate(offsets):
+            extent = paths[index % len(paths)].get_extents()
+            scale = sqrt(sizes[index % len(sizes)]) * points_to_pixels
+            stroke = widths[index % len(widths)] * points_to_pixels / 2 if len(widths) else 0
+            boxes.append(Bbox.from_extents(
+                x + extent.x0 * scale - stroke, y + extent.y0 * scale - stroke,
+                x + extent.x1 * scale + stroke, y + extent.y1 * scale + stroke,
+            ))
+    return boxes
+
+
+def _leader_segment(anchor, box):
+    """Connect the event to the nearest edge of its label."""
+    return RenderPath([anchor, (
+        min(max(anchor[0], box.x0), box.x1),
+        min(max(anchor[1], box.y0), box.y1),
+    )])
+
+
+def _position_transition_key(ax, renderer):
+    """Keep the compact notation key below the caller's final legend."""
+    legend = ax.get_legend()
+    if legend is None or not legend.get_visible():
+        return
+    for text in ax.texts:
+        if text.get_gid() == "priorityx-transition-key":
+            box = legend.get_window_extent(renderer)
+            text.set_position(ax.transAxes.inverted().transform(
+                (max(box.x0, ax.bbox.x1 + renderer.points_to_pixels(8)),
+                 box.y0 - renderer.points_to_pixels(8))
+            ))
+
+
+def layout_transition_labels(fig: plt.Figure) -> plt.Figure:
+    """Place timeline text deterministically without moving event markers.
+
+    Call again after changing titles, ticks, legends, figure size or DPI, and
+    after any ``tight_layout()`` call. Only annotations created by
+    :func:`plot_transition_timeline` are adjusted. Labels stay inside their
+    entity's row (its center remains nearest that row) and inside the axes,
+    at their existing font size. The full text is checked against neighboring
+    rows' labels and markers. Displaced labels receive leader lines.
+    The same figure is returned.
+
+    If the available space cannot accommodate every label, all text is retained
+    and a :class:`TransitionLabelLayoutWarning` recommends an explicit larger
+    ``figsize`` or separate ``entity_filter`` pages. A warning means the chart
+    still requires review; the helper never silently changes entity selection.
+    """
+    # Reset first so repeated calls do not accumulate offsets or leader lines.
+    for ax in fig.axes:
+        for text in ax.texts:
+            if isinstance(text, Annotation) and text.get_gid() == "priorityx-transition-label":
+                parts = getattr(text, "_priorityx_compact_parts", None)
+                if parts is not None:
+                    source, suffix = parts
+                    text.set_text(f"{source}→{suffix}")
+                    text.set_ha("right")
+                text.set_position((-9 if parts is not None else 8, 0))
+                text.arrow_patch.set_visible(False)
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    for ax in fig.axes:
+        _position_transition_key(ax, renderer)
+    fig.canvas.draw()
+    unit = renderer.points_to_pixels(1)
+    # Keep a small measured clearance around text.  A larger fixed gap can
+    # make otherwise solvable adjacent quarterly labels appear unresolved on
+    # older supported Matplotlib renderers.
+    padding = 1.0 * unit
+    unresolved = 0
+    overlapping_destinations = 0
+
+    for ax in fig.axes:
+        labels = [text for text in ax.texts
+                  if isinstance(text, Annotation)
+                  and text.get_gid() == "priorityx-transition-label"]
+        if not labels:
+            continue
+        axes_box = ax.get_window_extent(renderer)
+        rows = sorted(ax.transData.transform((0, y))[1] for y in ax.get_yticks())
+        markers = _marker_boxes(ax, unit)
+        destination_boxes = [Text.get_window_extent(text, renderer) for text in ax.texts
+                             if text.get_gid() == "priorityx-transition-destination"]
+        overlapping_destinations += sum(
+            box.overlaps(other) for index, box in enumerate(destination_boxes)
+            for other in destination_boxes[index + 1:]
+        )
+        legend = ax.get_legend()
+        decorations = [legend.get_window_extent(renderer)] if legend and legend.get_visible() else []
+        decorations += [text.get_window_extent(renderer) for text in ax.texts
+                        if text not in labels and text.get_visible()
+                        and text.get_gid() != "priorityx-transition-destination"]
+        placed = []
+        leaders = []
+
+        # Reserve the constrained edge first: compact prefers text on the left,
+        # while Q-style prefers text on the right.
+        for text in sorted(labels, key=lambda item: (
+            item.xy[1], item.xy[0] if hasattr(item, "_priorityx_compact_parts") else -item.xy[0],
+        )):
+            anchor = ax.transData.transform(text.xy)
+            row = min(range(len(rows)), key=lambda i: abs(rows[i] - anchor[1]))
+            bottom = (rows[row - 1] + rows[row]) / 2 if row else axes_box.y0
+            top = (rows[row] + rows[row + 1]) / 2 if row + 1 < len(rows) else axes_box.y1
+            band = Bbox.from_extents(axes_box.x0 + padding, max(bottom, axes_box.y0 + padding),
+                                     axes_box.x1 - padding, min(top, axes_box.y1 - padding))
+            parts = getattr(text, "_priorityx_compact_parts", None)
+            forms = [(text.get_text(), text.get_ha(), 8)]
+            if parts is not None:
+                source, suffix = parts
+                forms = [(f"{source}→{suffix}", "right", -9),
+                         (f"{suffix}←{source}", "left", 9)]
+            candidates = []
+            originals = []
+            # Measure both compact directions, including their spike suffixes.
+            for form_index, (label, alignment, offset) in enumerate(forms):
+                text.set_text(label)
+                text.set_ha(alignment)
+                text.set_position((offset, 0))
+                original = Text.get_window_extent(text, renderer).frozen()
+                originals.append(original)
+                xs = [0.0, band.x0 - original.x0, band.x1 - original.x1]
+                if parts is None:
+                    xs.append(anchor[0] - 8 * unit - original.x1)
+                xs += [x * 4 * unit for x in range(
+                    int((band.x0 - original.x0) / (4 * unit)),
+                    int((band.x1 - original.x1) / (4 * unit)) + 1,
+                )]
+                center_y = (original.y0 + original.y1) / 2
+                low, high = band.y0 - center_y, band.y1 - center_y
+                low, high = max(low, -30 * unit), min(high, 30 * unit)
+                ys = [0.0, low, high]
+                ys += [y * 2 * unit for y in range(int(low / (2 * unit)), int(high / (2 * unit)) + 1)]
+                candidates.extend((dx, dy, form_index) for dx in set(xs) for dy in set(ys))
+            candidates.sort(key=lambda value: (
+                abs(value[0]) + 2 * abs(value[1]) + value[2] * 4 * unit,
+                abs(value[1]), value[1] < 0, value[0] < 0, value[2], value[0], value[1],
+            ))
+            for dx, dy, form_index in candidates:
+                original = originals[form_index]
+                box = original.translated(dx, dy)
+                if parts is not None and (
+                    (form_index == 0 and box.x1 > anchor[0])
+                    or (form_index == 1 and box.x0 < anchor[0])
+                ):
+                    continue
+                if not (band.x0 <= box.x0 and box.x1 <= band.x1
+                        and band.y0 <= (box.y0 + box.y1) / 2 <= band.y1
+                        and axes_box.y0 + padding <= box.y0
+                        and box.y1 <= axes_box.y1 - padding):
+                    continue
+                padded = box.padded(padding)
+                obstacles = [other for other in markers + decorations
+                             if other.overlaps(band.padded(original.height / 2))]
+                if (any(box.padded(0.4 * unit).overlaps(other) for other in obstacles)
+                        or any(padded.overlaps(other) for other in placed)):
+                    continue
+                moved = abs(dx) > 0.01 or abs(dy) > 0.01
+                line = _leader_segment(anchor, box) if moved else None
+                if any(previous.intersects_bbox(padded, filled=False) for previous in leaders):
+                    continue
+                if line is not None and (
+                    any(line.intersects_bbox(other, filled=False) for other in placed + decorations)
+                    or any(line.intersects_bbox(other, filled=False) for other in markers
+                           if not other.contains(*anchor))
+                    or any(line.intersects_path(previous, filled=False) for previous in leaders)
+                ):
+                    continue
+                label, alignment, offset = forms[form_index]
+                text.set_text(label)
+                text.set_ha(alignment)
+                text.set_position((offset + dx / unit, dy / unit))
+                text.arrow_patch.set_visible(moved)
+                placed.append(padded)
+                if line is not None:
+                    leaders.append(line)
+                break
+            else:
+                unresolved += 1
+                label, alignment, offset = forms[0]
+                text.set_text(label)
+                text.set_ha(alignment)
+                text.set_position((offset, 0))
+                placed.append(originals[0].padded(padding))
+
+    fig.canvas.draw()
+    if unresolved or overlapping_destinations:
+        warnings.warn(
+            f"{unresolved} transition label(s) could not be placed without collisions "
+            f"at this figure size; {overlapping_destinations} destination digit pair(s) overlap. "
+            "All events and labels were retained. Increase figsize or render separate "
+            "entity_filter pages. For coincident compact digits, choose a finer "
+            "x_axis_granularity or label_style='quadrant'; review before delivery.",
+            TransitionLabelLayoutWarning,
+            stacklevel=2,
+        )
+    return fig
 
 
 def plot_transition_timeline(
@@ -44,6 +265,7 @@ def plot_transition_timeline(
     temporal_granularity: str = "quarterly",
     movement_df: Optional[pd.DataFrame] = None,
     close_fig: bool = False,
+    label_style: Literal["compact", "quadrant"] = "compact",
 ) -> plt.Figure:
     """
     Visualize transition timeline as heatmap.
@@ -74,6 +296,8 @@ def plot_transition_timeline(
         temporal_granularity: Time granularity for file naming
         movement_df: Optional movement DataFrame for priority calculation
         close_fig: Close the figure before returning (set True if you see duplicate inline renders)
+        label_style: "compact" (default) puts the destination digit in its event
+                     marker, e.g. 3→②; "quadrant" retains Q3→Q2 notation.
 
     Returns:
         Matplotlib figure
@@ -89,6 +313,8 @@ def plot_transition_timeline(
         ...     max_entities=10
         ... )
     """
+    if label_style not in ("compact", "quadrant"):
+        raise ValueError("label_style must be 'compact' or 'quadrant'")
     if transitions_df.empty:
         print("No transitions to visualize")
         return None
@@ -297,12 +523,11 @@ def plot_transition_timeline(
         # get priority color
         color = priority_colors.get(priority, "#95a5a6")
 
-        # plot circle
-        ax.scatter(x_pos, y_pos, s=100, c=color, alpha=0.8, zorder=2)
-
         # add transition label with spike indicator
+        from_quad = str(transition["from_quadrant"])
         to_quad = str(transition["to_quadrant"])
-        label = f"{transition['from_quadrant']}→{to_quad}"
+        label = f"{from_quad}→{to_quad}"
+        spike_suffix = ""
 
         # avoid duplicating spike markers when to_quadrant already
         # contains *X / *Y / *XY
@@ -311,22 +536,46 @@ def plot_transition_timeline(
         if spike_axis and not has_inline_spike:
             # add superscript indicator
             if spike_axis == "Y":
-                label += "*$^Y$"
+                spike_suffix = "*$^Y$"
             elif spike_axis == "X":
-                label += "*$^X$"
+                spike_suffix = "*$^X$"
             elif spike_axis == "XY":
-                label += "*$^{XY}$"
+                spike_suffix = "*$^{XY}$"
+        label += spike_suffix
 
-        ax.annotate(
+        compact = label_style == "compact" and all(
+            quadrant.split("*", 1)[0] in ("Q1", "Q2", "Q3", "Q4")
+            for quadrant in (from_quad, to_quad)
+        )
+        if label_style == "compact" and not compact:
+            warnings.warn(
+                "Unrecognized quadrant code; retaining the complete transition "
+                "label for this event in compact mode.", UserWarning, stacklevel=2,
+            )
+        ax.scatter(x_pos, y_pos, s=196 if compact else 100, c=color, alpha=0.8, zorder=2)
+        if compact:
+            source, suffix = from_quad[1:], to_quad[2:] + spike_suffix
+            label = f"{source}→{suffix}"
+            ax.text(x_pos, y_pos, to_quad[1], fontsize=12, ha="center", va="center",
+                    color="black", zorder=4, gid="priorityx-transition-destination")
+
+        annotation = ax.annotate(
             label,
             (x_pos, y_pos),
-            xytext=(8, 0),
+            xytext=(-9 if compact else 8, 0),
             textcoords="offset points",
             fontsize=12,
             color="black",
             va="center",
+            ha="right" if compact else "left",
             alpha=0.8,
+            gid="priorityx-transition-label",
+            arrowprops={"arrowstyle": "-", "color": "#777777", "lw": 0.6,
+                        "shrinkA": 2, "shrinkB": 8 if compact else 6},
         )
+        if compact:
+            annotation._priorityx_compact_parts = (source, suffix)
+        annotation.arrow_patch.set_visible(False)
 
     # customize plot
     ax.set_yticks(range(len(entities)))
@@ -379,7 +628,8 @@ def plot_transition_timeline(
     for priority, color, label in priority_defs:
         if priority in priorities_present:
             legend_elements.append(
-                plt.scatter([], [], s=100, c=color, alpha=0.8, label=label)
+                plt.scatter([], [], s=196 if label_style == "compact" else 100,
+                            c=color, alpha=0.8, label=label)
             )
 
     if legend_elements:
@@ -395,14 +645,22 @@ def plot_transition_timeline(
         )
 
         # add superscript note below legend
+        note = "*$^Y$ = Y-axis spike\n*$^X$ = X-axis spike"
+        if label_style == "compact":
+            note = ("Score quadrant at event\nBefore → after\n"
+                    "1: X > 0, Y > 0\n2: X ≤ 0, Y > 0\n"
+                    "3: X ≤ 0, Y ≤ 0\n4: X > 0, Y ≤ 0\n\n"
+                    "Numbers are quadrants,\nnot ranks or current status.\n"
+                    "Color = event class.\n\n" + note)
         ax.text(
             1.02,
             0.25,
-            "*$^Y$ = Y-axis spike\n*$^X$ = X-axis spike",
+            note,
             transform=ax.transAxes,
-            fontsize=12,
+            fontsize=10 if label_style == "compact" else 12,
             ha="left",
             va="top",
+            gid="priorityx-transition-key" if label_style == "compact" else None,
         )
 
     # set labels
@@ -435,6 +693,7 @@ def plot_transition_timeline(
 
     ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
     plt.tight_layout()
+    layout_transition_labels(fig)
 
     # determine actual save paths
     actual_plot_path: Optional[Path] = None
@@ -490,7 +749,15 @@ def plot_transition_timeline(
     # save plot if path determined
     if actual_plot_path:
         actual_plot_path.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(actual_plot_path, dpi=300, bbox_inches="tight", format="png")
+        # Measure at the renderer's export DPI before writing the PNG.
+        original_dpi = fig.dpi
+        try:
+            fig.set_dpi(300)
+            layout_transition_labels(fig)
+            fig.savefig(actual_plot_path, dpi=300, bbox_inches="tight", format="png")
+        finally:
+            fig.set_dpi(original_dpi)
+            layout_transition_labels(fig)
         print(f"Transition plot saved: {actual_plot_path}")
 
     # save CSV if path determined

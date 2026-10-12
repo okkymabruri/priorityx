@@ -422,12 +422,60 @@ fig = px.plot_transition_timeline(
 )
 ```
 
-Creates timeline heatmap of transitions. Passing `movement_df` is required to compute the Crisis/Investigate/Monitor/Low priority tiers and spike markers (`*X`, `*Y`, `*XY`). Omitting it falls back to legacy risk-level tags.
+Creates a timeline of transitions. Passing `movement_df` computes the
+Crisis/Investigate/Monitor/Low event classes and spike markers (`*X`, `*Y`,
+`*XY`). Without movement data, the existing default is Investigate. These
+algorithmic classes are not verified distress.
+
+**Label styles:**
+
+- `label_style="compact"` (default): `3→②`, with the destination digit
+  inside the colored event marker. At the left plot edge the same transition
+  can read `②←3`. Markers are 14 pt in diameter; event text remains 12 pt.
+- `label_style="quadrant"`: retain `Q3→Q2` and 10 pt markers, using the same
+  collision handling and leader lines.
+
+```python
+# Restore the Q-style display used before the compact default.
+fig = px.plot_transition_timeline(
+    transitions_df, movement_df=movement_df, label_style="quadrant"
+)
+```
+
+The compact key describes score quadrants **at the event**: numbers are not
+ranks, calendar quarters or current status. Color encodes the event class,
+independently of the destination quadrant. Both styles retain the origin,
+destination and spike indicators; only annotation text moves during layout.
+Unknown quadrant codes retain their full transition labels with a warning in
+compact mode. An unsupported `label_style` raises `ValueError`.
 
 **Path Parameters:**
 
 - `plot_path`: Path to save plot (accepts Path or str). If provided, saves plot.
 - `csv_path`: Path to save CSV (accepts Path or str). If provided, saves CSV.
+
+### layout_transition_labels
+
+Transition timelines place labels automatically using rendered text and marker
+dimensions. Labels stay within their entity rows; displaced text has leader lines.
+Selection, ordering, event coordinates and classifications are unchanged.
+
+If you customize a timeline, rerun placement **after** your final layout changes:
+
+```python
+fig = px.plot_transition_timeline(transitions_df, movement_df=movement_df)
+# Apply custom ticks, title, legend, figsize or DPI here.
+fig.set_dpi(300)  # Measure with the same renderer resolution used for export.
+fig.tight_layout()
+px.layout_transition_labels(fig)
+fig.savefig("timeline.png", dpi=300, bbox_inches="tight")
+```
+
+The helper returns the same figure and repeated calls reset placement rather than
+accumulating offsets. A `TransitionLabelLayoutWarning` means some labels could
+not fit: all labels remain, but the chart needs review. Explicitly increase
+`figsize` or render separately selected `entity_filter` pages. The renderer never
+shrinks text, removes events, changes date ticks or expands the canvas automatically.
 
 ### plot_entity_trajectories
 

@@ -42,7 +42,7 @@ from .api import (  # noqa: F401
     track_cumulative_movement,  # deprecated alias
 )
 
-__version__ = "0.6.2"
+__version__ = "0.6.3"
 
 __all__ = [
     "__version__",

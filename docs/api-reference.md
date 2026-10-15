@@ -430,10 +430,18 @@ algorithmic classes are not verified distress.
 **Label styles:**
 
 - `label_style="compact"` (default): `3→②`, with the destination digit
-  inside the colored event marker. At the left plot edge the same transition
-  can read `②←3`. Markers are 14 pt in diameter; event text remains 12 pt.
+  inside the colored event marker and spike indicators after it: `3→②*XY`.
+  The notation stays horizontal and always reads left to right, including at
+  plot edges. Markers are 14 pt in diameter; event text remains 12 pt.
+  The default canvas is **21×12 inches**, allowing more space between events.
 - `label_style="quadrant"`: retain `Q3→Q2` and 10 pt markers, using the same
-  collision handling and leader lines.
+  measured placement and leader lines as before, on a **16×12-inch** default canvas.
+
+An explicit `figsize=(width, height)` overrides either default; the renderer
+does not enlarge it automatically when labels cannot fit.
+`figsize` is measured in inches; export `dpi` controls resolution independently.
+For example, use `figsize=(24, 12)` for a wider canvas while keeping the same
+font sizes. Increasing DPI alone does not add room between labels.
 
 ```python
 # Restore the Q-style display used before the compact default.
@@ -442,9 +450,13 @@ fig = px.plot_transition_timeline(
 )
 ```
 
-The compact key describes score quadrants **at the event**: numbers are not
-ranks, calendar quarters or current status. Color encodes the event class,
-independently of the destination quadrant. Both styles retain the origin,
+The compact key shows a reading example drawn from a displayed event, the color
+legend and the `*X`, `*Y`, `*XY` suffix definitions. It intentionally keeps the
+key compact: the chart does not repeat the quadrant sign table or an outcome
+disclaimer. The example is explanatory; it adds no event marker to the data
+axes. Numbers identify score quadrants **at the event**, rather than ranks,
+calendar quarters or current status. Color encodes the event class independently
+of the destination quadrant. Both styles retain the origin,
 destination and spike indicators; only annotation text moves during layout.
 Unknown quadrant codes retain their full transition labels with a warning in
 compact mode. An unsupported `label_style` raises `ValueError`.
@@ -456,9 +468,11 @@ compact mode. An unsupported `label_style` raises `ValueError`.
 
 ### layout_transition_labels
 
-Transition timelines place labels automatically using rendered text and marker
-dimensions. Labels stay within their entity rows; displaced text has leader lines.
-Selection, ordering, event coordinates and classifications are unchanged.
+Transition timelines use rendered text and marker dimensions. Compact labels
+stay beside their markers with the suffix on the right; measured empty padding
+at plot edges preserves their reading order. Q-style label centers stay nearest
+their entity row, with leader lines when displaced. Selection, ordering, event dates,
+marker data coordinates, date ticks and classifications are unchanged.
 
 If you customize a timeline, rerun placement **after** your final layout changes:
 
@@ -474,7 +488,9 @@ fig.savefig("timeline.png", dpi=300, bbox_inches="tight")
 The helper returns the same figure and repeated calls reset placement rather than
 accumulating offsets. A `TransitionLabelLayoutWarning` means some labels could
 not fit: all labels remain, but the chart needs review. Explicitly increase
-`figsize` or render separately selected `entity_filter` pages. The renderer never
+`figsize` width for adjacent events or render separately selected `entity_filter`
+pages for crowded rows. Compact notation stays inline even if space is
+insufficient; a warning means the chart fails readability acceptance. The renderer never
 shrinks text, removes events, changes date ticks or expands the canvas automatically.
 
 ### plot_entity_trajectories

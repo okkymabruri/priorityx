@@ -10,9 +10,7 @@ Entity prioritization and escalation detection using GLMM statistical models
 
 ## Installation
 
-The v0.7.0 development branch requires Python 3.12 or later. This checkout uses
-Python 3.12 by default for development; published v0.6.3 keeps its original Python
-requirement.
+Requires Python 3.12 or later.
 
 ```bash
 pip install priorityx
@@ -24,18 +22,14 @@ Explore a linked **quadrant matrix → YTD transition timeline → trajectories*
 and regenerate layouts through browser controls. AutoViz reads saved results;
 opening charts or changing their layout does not fit models.
 
-AutoViz is part of the **unreleased v0.7.0 development branch**, not the published
-v0.6.3 package. In a Python 3.12+ virtual environment, run these commands from
-this checkout (`feature/v0.7.0-autoviz`):
+Start the workspace:
 
 ```bash
-python -m pip install -e .
 python -m priorityx app
 ```
 
-The app opens in your browser on a free `127.0.0.1` port. It works locally on
-macOS, Windows and Linux without Node or a hosted server. Keep the terminal
-running while using the app; press Ctrl+C to stop it.
+The app opens in your browser and runs locally on macOS, Windows and Linux.
+Keep the terminal running while using the app; press Ctrl+C to stop it.
 
 1. **Open results**: choose a saved result bundle, or **Import CSV files** and
    assign your saved matrix, movement and transition CSVs. Supply the type label,
@@ -161,7 +155,7 @@ top_risks = results.nlargest(10, "EWI")
 
 ## Features
 
-- AutoViz local workspace with linked interactive charts, automatic layout and offline HTML export (v0.7.0 development)
+- AutoViz local workspace with linked interactive charts, automatic layout and offline HTML export
 - GLMM-based priority matrix (Q1–Q4) with entity-level intercept/slope insights
 - Priority-based transition timeline (Crisis / Investigate / Monitor / Low) with spike markers (`*X`, `*Y`, `*XY`)
 - Cumulative movement tracking and trajectory visualizations

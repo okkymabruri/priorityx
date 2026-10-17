@@ -1,15 +1,14 @@
 # Local saved-results workspace
 
-The development workspace opens validated saved results without fitting models.
+The local workspace opens validated saved results without fitting models.
 It uses Plotly.js for linked quadrant matrices, transition timelines and
 trajectories. The existing Matplotlib plotting API and its defaults are unchanged.
 
-The workspace requires Python 3.12 or later. The source checkout defaults to
-Python 3.12; CI is configured for Python 3.12, 3.13 and 3.14.
+The workspace requires Python 3.12 or later.
 
 ```sh
 priorityx app --bundle results.json
-# Equivalent when running from a source checkout:
+# Or use the Python module:
 python -m priorityx app --bundle results.json
 ```
 

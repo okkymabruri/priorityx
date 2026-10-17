@@ -10,9 +10,7 @@
 
 ## Installation
 
-The v0.7.0 development branch requires Python 3.12 or later. This checkout uses
-Python 3.12 by default for development; published v0.6.3 keeps its original Python
-requirement.
+Requires Python 3.12 or later.
 
 ```bash
 pip install priorityx

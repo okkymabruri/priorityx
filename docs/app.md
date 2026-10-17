@@ -117,7 +117,11 @@ package. `build_html()` reads those assets directly; there is no Node runtime,
 CDN fetch or dependency on development prototypes. Build distributions with
 `uv build`; no additional Python runtime dependencies are required.
 
-Cross-platform Python code is provided for Mac and Windows. Platform fonts,
-physical touch and Safari behavior require separate qualification.
+The CI matrix covers Linux, macOS and Windows on Python 3.12–3.14. After building,
+each job replaces the editable install with the wheel and checks console launch
+from a path containing spaces/non-ASCII text, both cadences, all chart families'
+spawned PNG/SVG exports, and direct offline-file reopening in headless Chrome or
+Edge. Receipts and exported artifacts accompany each run. These automated checks
+do not certify physical touch, platform font appearance or Safari behavior.
 Future private hosting needs its own access and deployment design; the local
 launcher deliberately does not expose a remote bind option.

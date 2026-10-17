@@ -20,6 +20,8 @@ Only major releases (v0.x.0) are listed.
 - Require Python 3.12 or later; support for Python 3.10 and 3.11 is removed.
 - Default source-checkout development to Python 3.12 and configure CI for
   Python 3.12, 3.13 and 3.14 on Linux, macOS and Windows.
+- Check installed-wheel app launch, spawned exports and disconnected HTML
+  reopening in CI; require the quality matrix before release builds.
 
 ---
 

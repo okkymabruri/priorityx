@@ -2,13 +2,19 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/v0.7.0-autoviz]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -43,3 +49,30 @@ jobs:
 
       - name: Build distributions
         run: uv build
+
+      - name: Install built wheel in place of editable checkout
+        run: >-
+          uv run --no-sync python -c "import pathlib, subprocess, sys;
+          wheel, = pathlib.Path('dist').glob('*.whl');
+          subprocess.run(['uv', 'pip', 'install', '--python', sys.executable,
+          '--no-deps', '--reinstall', str(wheel)], check=True)"
+
+      - name: Verify installed app, spawned exports and offline browser reopening
+        run: >-
+          uv run --no-sync python scripts/verify_installed_app.py
+          --output dev/tmp/ci-installed-app
+
+      - name: Retain installed-app evidence
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: installed-app-${{ matrix.os }}-python-${{ matrix.python-version }}
+          path: |
+            dev/tmp/ci-installed-app/*.json
+            dev/tmp/ci-installed-app/*.log
+            dev/tmp/ci-installed-app/*.png
+            dev/tmp/ci-installed-app/*.svg
+            dev/tmp/ci-installed-app/exported-workspace.html
+            dev/tmp/ci-installed-app/*failure.html
+          retention-days: 7
+          if-no-files-found: warn

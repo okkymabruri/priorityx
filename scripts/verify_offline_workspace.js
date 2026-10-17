@@ -30,8 +30,10 @@
     assert(!app.service, 'offline mode without Python service');
     const brand = document.querySelector('h1');
     const symbol = brand.querySelector('svg');
+    const name = brand.querySelector('.brand-name');
     assert(brand.getAttribute('aria-label') === 'PriorityX', 'accessible brand name');
-    assert(symbol?.getBoundingClientRect().width >= 16 && symbol.closest('[aria-hidden="true"]'), 'visible decorative brand symbol');
+    assert(name?.textContent === 'PriorityX' && getComputedStyle(name).opacity === '1', 'intact visible brand name');
+    assert(symbol?.getBoundingClientRect().width >= 16 && symbol.closest('[aria-hidden="true"]') && symbol.getBoundingClientRect().right <= name.getBoundingClientRect().left, 'visible decorative symbol precedes name');
     const favicon = document.querySelector('link[rel="icon"]')?.getAttribute('href');
     assert(favicon?.startsWith('data:image/svg+xml,'), 'favicon embedded without a network asset');
     const faviconSvg = new DOMParser().parseFromString(decodeURIComponent(favicon.slice(favicon.indexOf(',') + 1)), 'image/svg+xml');

@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-labelledby="priorityx-mark-title priorityx-mark-description">
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img" aria-labelledby="priorityx-mark-title priorityx-mark-description">
   <title id="priorityx-mark-title">PriorityX symbol</title>
-  <desc id="priorityx-mark-description">Crossing score axes with one detached entity point.</desc>
-  <metadata>Original PriorityX brand geometry. Monochrome identity, independent of chart classes. MIT license.</metadata>
-  <g fill="currentColor">
-    <path d="M8 8h13l35 48H43Z"/>
-    <path d="M8 56h13l25-34H33Z"/>
-    <circle cx="48" cy="11" r="6"/>
+  <desc id="priorityx-mark-description">A coordinate field with one selected entity point.</desc>
+  <metadata>Original PriorityX brand geometry. Monochrome coordinate field, independent of chart classes. MIT license.</metadata>
+  <g fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square">
+    <path d="M5 5V27H27"/>
+    <path d="M5 16H27M16 5V27" opacity=".55"/>
   </g>
+  <circle cx="23" cy="9" r="3.5" fill="currentColor"/>
 </svg>

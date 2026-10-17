@@ -36,7 +36,8 @@ def build_html(bundle: ResultBundle, settings=None, *, service_mode: bool = Fals
     resolved = resolve_settings(settings, prepared)
     web = files("priorityx").joinpath("web")
     mark = web.joinpath("priorityx-mark.svg").read_text(encoding="utf-8")
-    favicon = mark.replace('<g ', '<rect width="64" height="64" rx="12" fill="#f5f8f7"/><g ', 1)
+    favicon = mark.replace('<svg ', '<svg color="#203026" ', 1)
+    favicon = favicon.replace('<g ', '<rect width="32" height="32" rx="6" fill="#f5f8f7"/><g ', 1)
     replacements = {"__LIBRARY__": web.joinpath("plotly-basic-4.1.2.min.js").read_text(encoding="utf-8"),
                     "__LOGO__": mark,
                     "__FAVICON__": "data:image/svg+xml," + quote(favicon, safe=""),

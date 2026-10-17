@@ -28,6 +28,9 @@ dependencies = [
     "statsmodels>=0.14.5",
 ]
 
+[project.scripts]
+priorityx = "priorityx.app:main"
+
 [project.urls]
 Homepage = "https://github.com/okkymabruri/priorityx"
 Repository = "https://github.com/okkymabruri/priorityx"

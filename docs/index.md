@@ -97,7 +97,7 @@ top_risks = results.nlargest(10, "EWI")
 
 ## Use Cases
 
-- Consumer complaint prioritization (financial services, regulatory)
+- Entity prioritization for operational and research workflows
 - IT incident triage
 - Software bug prioritization
 - Compliance violation monitoring
@@ -107,4 +107,5 @@ top_risks = results.nlargest(10, "EWI")
 
 - [Quick Start Guide](quickstart.md) — Full walkthrough
 - [API Reference](api-reference.md) — Function signatures and parameters
+- [Saved Results](saved-results.md) — Portable result bundles and explicit CSV imports
 - [Methodology](methodology.md) — Statistical background

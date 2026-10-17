@@ -62,7 +62,7 @@ def display_quadrant_summary(
                 top_entities = q_data.nlargest(3, "count")
                 print("Top by volume:")
                 for _, row in top_entities.iterrows():
-                    entity_val = row.get("entity", row.get("Topic", "Unknown"))
+                    entity_val = row.get("entity", "Unknown")
                     print(f"  {entity_val} ({int(row['count'])} count)")
 
 

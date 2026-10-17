@@ -9,7 +9,7 @@
 # release. Publish a release and the site picks it up; nothing here deploys.
 
 site_name: PriorityX
-site_description: Priority matrix analysis using GLMM for consumer complaint prioritization
+site_description: Generic entity prioritization and transition analysis using GLMM statistical models
 site_url: https://okkymabruri.github.io/priorityx
 repo_url: https://github.com/okkymabruri/priorityx
 repo_name: okkymabruri/priorityx
@@ -28,6 +28,8 @@ nav:
   - Home: index.md
   - Quick Start: quickstart.md
   - API Reference: api-reference.md
+  - Saved Results: saved-results.md
+  - Local Workspace: app.md
   - Methodology: methodology.md
   - Priority Classification: priority_classification.md
   - Output Naming: output_naming.md

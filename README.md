@@ -3,16 +3,82 @@
 [![PyPI version](https://badge.fury.io/py/priorityx.svg)](https://badge.fury.io/py/priorityx)
 [![Downloads](https://static.pepy.tech/badge/priorityx)](https://pepy.tech/project/priorityx)
 [![Tests](https://github.com/okkymabruri/priorityx/workflows/Tests/badge.svg)](https://github.com/okkymabruri/priorityx/actions)
-[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Entity prioritization and escalation detection using GLMM statistical models
 
 ## Installation
 
+Requires Python 3.12 or later.
+
 ```bash
 pip install priorityx
 ```
+
+## AutoViz: interactive saved-results workspace
+
+Explore a linked **quadrant matrix → YTD transition timeline → trajectories**
+and regenerate layouts through browser controls. AutoViz reads saved results;
+opening charts or changing their layout does not fit models.
+
+Start the workspace:
+
+```bash
+python -m priorityx app
+```
+
+The app opens in your browser and runs locally on macOS, Windows and Linux.
+Keep the terminal running while using the app; press Ctrl+C to stop it.
+
+1. **Open results**: choose a saved result bundle, or **Import CSV files** and
+   assign your saved matrix, movement and transition CSVs. Supply the type label,
+   cadence, coverage and source metadata. These are PriorityX result tables;
+   source-specific raw data must be transformed by your own adapter first.
+2. **Choose Type and cadence**: labels come from your results. Quarterly opens
+   when available. The timeline shows YTD through the latest saved period;
+   full history is retained for event classification and trajectories.
+3. **Inspect and adjust**: select an entity to link the charts, zoom or **Reset
+   view**, and open **View data** for exact values. Use **Layout** to adjust equal
+   panel sizes and apply the changes. **Save settings** and **Load settings**
+   inside Layout preserve a portable view configuration.
+4. **Export**: **Export → Save offline HTML** saves an interactive view that
+   reopens without Python or a network connection. Matrix SVG also works offline;
+   print PNG/SVG exports require the running local app. The HTML contains the
+   full saved data, so share it with the same care as the source results.
+
+To open a bundle directly:
+
+```bash
+python -m priorityx app --bundle results.json
+```
+
+<details>
+<summary>Create a bundle from existing saved CSVs</summary>
+
+```python
+from priorityx.results import ResultBundle, import_results_csv
+
+dataset = import_results_csv(
+    entity_type="work_unit", type_label="Work units",
+    cadence="quarterly", source_id="saved-analysis",
+    coverage_start="2025-Q1", as_of="2025-Q4",
+    matrix_path="priority_matrix.csv",
+    movement_path="movement.csv",
+    transitions_path="transitions.csv",
+)
+ResultBundle([dataset]).save("results.json")
+```
+
+Use your actual file paths and coverage dates. Quarterly dates use `YYYY-Qn`;
+monthly dates use `YYYY-MM` with `cadence="monthly"`. A bundle can hold multiple
+types and cadences by including more datasets in `ResultBundle([...])`.
+
+</details>
+
+See the [workspace guide](docs/app.md) for controls, layout, state and exports,
+and the [saved-result contract](docs/saved-results.md) for import validation and
+trajectory selection.
 
 ## Quick Start
 
@@ -89,6 +155,7 @@ top_risks = results.nlargest(10, "EWI")
 
 ## Features
 
+- AutoViz local workspace with linked interactive charts, automatic layout and offline HTML export
 - GLMM-based priority matrix (Q1–Q4) with entity-level intercept/slope insights
 - Priority-based transition timeline (Crisis / Investigate / Monitor / Low) with spike markers (`*X`, `*Y`, `*XY`)
 - Cumulative movement tracking and trajectory visualizations
@@ -101,6 +168,8 @@ IT incidents, software bugs, compliance violations, performance monitoring.
 
 ## Documentation
 
+- [AutoViz Workspace](docs/app.md)
+- [Saved Results and CSV Import](docs/saved-results.md)
 - [Quick Start](docs/quickstart.md)
 - [API Reference](docs/api-reference.md)
 - [Methodology](docs/methodology.md)

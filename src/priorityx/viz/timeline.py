@@ -799,15 +799,8 @@ def plot_transition_timeline(
     axis_fontsize = 15
     ax.set_xlabel(xlabel_map.get(x_axis_granularity, "Period"), fontsize=axis_fontsize)
     
-    # Use readable y-axis label
-    if "fsp" in entity_name.lower():
-        ylabel = "FSP"
-    elif "topic" in entity_name.lower():
-        ylabel = "Topic"
-    elif "product" in entity_name.lower():
-        ylabel = "Product"
-    else:
-        ylabel = entity_name
+    # The caller owns the entity label. Do not infer a domain from the name.
+    ylabel = entity_name
     ax.set_ylabel(ylabel, fontsize=axis_fontsize)
     ax.set_yticklabels(entities, fontsize=tick_fontsize)
 

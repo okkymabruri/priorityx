@@ -68,7 +68,7 @@ def test_monthly_timeline_smoke():
 
     fig = px.plot_transition_timeline(
         transitions,
-        entity_name="Entity",
+        entity_name="Product support units",
         x_axis_granularity="monthly",
         temporal_granularity="monthly",
         movement_df=movement_df,
@@ -78,6 +78,8 @@ def test_monthly_timeline_smoke():
     )
 
     assert fig is not None
+    assert fig.axes[0].get_ylabel() == "Product support units"
+    assert fig.axes[0].get_title() == "Product support units Transition Timeline"
 
 
 def test_monthly_trajectories_smoke():
@@ -96,7 +98,7 @@ def test_monthly_trajectories_smoke():
 
     fig = px.plot_entity_trajectories(
         movement_df,
-        entity_name="Entity",
+        entity_name="Product support units",
         temporal_granularity="monthly",
         save_plot=False,
         save_csv=False,
@@ -104,6 +106,7 @@ def test_monthly_trajectories_smoke():
     )
 
     assert fig is not None
+    assert fig.axes[0].get_title() == "Product support units Entity Trajectory"
 
 
 def test_trajectories_highlight_top_n():

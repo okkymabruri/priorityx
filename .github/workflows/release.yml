@@ -9,8 +9,12 @@ permissions:
   contents: read
 
 jobs:
+  quality:
+    uses: ./.github/workflows/test.yml
+
   build:
     name: Build package
+    needs: [quality]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
@@ -23,18 +27,25 @@ jobs:
     - name: Verify version matches tag
       if: startsWith(github.ref, 'refs/tags/')
       run: |
-        TAG_VERSION=${GITHUB_REF#refs/tags/v}
-        FILE_VERSION=$(grep -Pom1 '^\s*version\s*=\s*"\K[^"]+' pyproject.toml)
-        if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
-          echo "Version mismatch!"
-          echo "   Tag: v$TAG_VERSION"
-          echo "   File: $FILE_VERSION"
-          exit 1
-        fi
-        echo "Version check passed: $FILE_VERSION"
+        python - <<'PY'
+        import ast
+        import os
+        from pathlib import Path
+        import tomllib
+        expected = os.environ["GITHUB_REF"].removeprefix("refs/tags/v")
+        declared = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+        assignments = ast.parse(Path("src/priorityx/__init__.py").read_text()).body
+        runtime = next(ast.literal_eval(node.value) for node in assignments
+                       if isinstance(node, ast.Assign)
+                       and any(isinstance(target, ast.Name) and target.id == "__version__"
+                               for target in node.targets))
+        if expected != declared or expected != runtime:
+            raise SystemExit(f"Version mismatch: tag={expected}, metadata={declared}, runtime={runtime}")
+        print(f"Version check passed: {expected}")
+        PY
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v4
+      uses: astral-sh/setup-uv@v6
 
     - name: Build distributions
       run: |
@@ -76,7 +87,6 @@ jobs:
       with:
         verbose: true
         print-hash: true
-        skip-existing: true
         attestations: true
 
   create-release:

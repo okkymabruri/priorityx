@@ -280,10 +280,10 @@ import priorityx as px
 analysis = px.extract_transition_drivers(
     movement_df,
     df_raw,
-    entity_name="Service A",
+    entity_name="Entity A",
     period_from="2024-Q2",
     period_to="2024-Q3",
-    entity_col="service",
+    entity_col="entity",
     timestamp_col="date",
     subcategory_cols=["type", "category"],  # categorical breakdowns
 )
@@ -292,10 +292,10 @@ analysis = px.extract_transition_drivers(
 analysis = px.extract_transition_drivers(
     movement_df,
     df_raw,
-    entity_name="Fintech - Pinjaman Online",
+    entity_name="Entity B",
     period_from="2024-Q3",
     period_to="2024-Q4",
-    entity_col="product",
+    entity_col="entity",
     timestamp_col="date",
     subcategory_cols=["region", "gender"],
     numeric_cols={
@@ -427,6 +427,9 @@ Crisis/Investigate/Monitor/Low event classes and spike markers (`*X`, `*Y`,
 `*XY`). Without movement data, the existing default is Investigate. These
 algorithmic classes are not verified distress.
 
+`entity_name` is a caller-provided display label. It is used unchanged for the
+entity axis and generated title; PriorityX does not infer a domain from its text.
+
 **Label styles:**
 
 - `label_style="compact"` (default): `3→②`, with the destination digit
@@ -509,7 +512,7 @@ fig = px.plot_entity_trajectories(
 # Auto-select top movers with simplified path API (recommended)
 fig = px.plot_entity_trajectories(
     movement_df,
-    entity_name="product",
+    entity_name="Entity",
     highlight_top_n=4,                   # auto-select top 4 entities
     highlight_by="trajectory_distance",  # by path length (or "total_movement")
     recent_periods=6,                    # limit to last 6 periods
@@ -520,11 +523,12 @@ fig = px.plot_entity_trajectories(
 ```
 
 Creates trajectory plot showing entity paths through priority space.
+The generated title uses the caller's `entity_name` unchanged.
 
 **Parameters:**
 
 - `movement_df`: Output from track_movement()
-- `entity_name`: Label for entity type (e.g., "product", "service")
+- `entity_name`: Caller-provided label for the entity type
 - `max_entities`: Maximum entities to show (default: 10)
 - `highlight_entities`: List of specific entities to highlight
 - `highlight_top_n`: Auto-select top N entities by movement (overrides max_entities)
@@ -550,9 +554,9 @@ from priorityx.utils.helpers import (
     display_movement_summary
 )
 
-display_quadrant_summary(results_df, entity_name="Service")
-display_transition_summary(transitions_df, entity_name="Service")
-display_movement_summary(movement_df, entity_name="Service")
+display_quadrant_summary(results_df, entity_name="Entity")
+display_transition_summary(transitions_df, entity_name="Entity")
+display_movement_summary(movement_df, entity_name="Entity")
 ```
 
 Prints formatted summaries of analysis results.

@@ -384,16 +384,9 @@ def plot_entity_trajectories(
             fontweight="bold",
         )
 
-    # set labels - use readable names
+    # The caller owns the entity label. Do not infer a domain from the name.
     axis_fontsize = 15
-    if "fsp" in entity_name.lower():
-        ylabel = "FSP"
-    elif "topic" in entity_name.lower():
-        ylabel = "Topic"
-    elif "product" in entity_name.lower():
-        ylabel = "Product"
-    else:
-        ylabel = entity_name
+    ylabel = entity_name
     ax.set_xlabel("Volume (Relative)", fontsize=axis_fontsize)
     ax.set_ylabel("Growth Rate (Relative)", fontsize=axis_fontsize)
 

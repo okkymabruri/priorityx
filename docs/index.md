@@ -5,10 +5,12 @@
 [![PyPI version](https://badge.fury.io/py/priorityx.svg)](https://badge.fury.io/py/priorityx)
 [![Downloads](https://static.pepy.tech/badge/priorityx)](https://pepy.tech/project/priorityx)
 [![Tests](https://github.com/okkymabruri/priorityx/workflows/Tests/badge.svg)](https://github.com/okkymabruri/priorityx/actions)
-[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Installation
+
+Requires Python 3.12 or later.
 
 ```bash
 pip install priorityx
@@ -93,7 +95,7 @@ top_risks = results.nlargest(10, "EWI")
 
 ## Use Cases
 
-- Consumer complaint prioritization (financial services, regulatory)
+- Entity prioritization for operational and research workflows
 - IT incident triage
 - Software bug prioritization
 - Compliance violation monitoring
@@ -103,4 +105,5 @@ top_risks = results.nlargest(10, "EWI")
 
 - [Quick Start Guide](quickstart.md) — Full walkthrough
 - [API Reference](api-reference.md) — Function signatures and parameters
+- [Saved Results](saved-results.md) — Portable result bundles and explicit CSV imports
 - [Methodology](methodology.md) — Statistical background

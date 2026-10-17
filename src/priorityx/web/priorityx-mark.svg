@@ -1,10 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img" aria-labelledby="priorityx-mark-title priorityx-mark-description">
   <title id="priorityx-mark-title">PriorityX symbol</title>
-  <desc id="priorityx-mark-description">A coordinate field with one selected entity point.</desc>
-  <metadata>Original PriorityX brand geometry. Monochrome coordinate field, independent of chart classes. MIT license.</metadata>
-  <g fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square">
-    <path d="M5 5V27H27"/>
-    <path d="M5 16H27M16 5V27" opacity=".55"/>
+  <desc id="priorityx-mark-description">Three muted fields and one emphasized point in the upper-right position.</desc>
+  <metadata>Original PriorityX brand geometry. Monochrome fields and point, independent of chart classes. MIT license.</metadata>
+  <g fill="currentColor" opacity=".34">
+    <rect x="5" y="5" width="8" height="8" rx=".7"/>
+    <rect x="5" y="19" width="8" height="8" rx=".7"/>
+    <rect x="19" y="19" width="8" height="8" rx=".7"/>
   </g>
-  <circle cx="23" cy="9" r="3.5" fill="currentColor"/>
+  <circle cx="23" cy="9" r="4" fill="currentColor"/>
 </svg>

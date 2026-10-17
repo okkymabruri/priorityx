@@ -28,6 +28,14 @@
     const original = JSON.stringify(app.source);
     assert(location.protocol === 'file:', 'direct file URL');
     assert(!app.service, 'offline mode without Python service');
+    const brand = document.querySelector('h1');
+    const symbol = brand.querySelector('svg');
+    assert(brand.getAttribute('aria-label') === 'PriorityX', 'accessible brand name');
+    assert(symbol?.getBoundingClientRect().width >= 16 && symbol.closest('[aria-hidden="true"]'), 'visible decorative brand symbol');
+    const favicon = document.querySelector('link[rel="icon"]')?.getAttribute('href');
+    assert(favicon?.startsWith('data:image/svg+xml,'), 'favicon embedded without a network asset');
+    const faviconSvg = new DOMParser().parseFromString(decodeURIComponent(favicon.slice(favicon.indexOf(',') + 1)), 'image/svg+xml');
+    assert(!faviconSvg.querySelector('parsererror') && faviconSvg.querySelector('path,circle'), 'embedded favicon is a valid vector');
     assert($('savePng').disabled && $('saveSvg').disabled, 'Python print controls disabled offline');
     assert(app.state.cadence === 'quarterly', 'Quarterly opening/restored cadence');
     assert($('type').selectedOptions[0].textContent === 'Work units', 'caller type label preserved');

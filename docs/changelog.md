@@ -6,6 +6,8 @@ Only major releases (v0.x.0) are listed.
 
 ## Unreleased — v0.7.0
 
+- Add an original monochrome PriorityX wordmark/symbol and embedded tab icon,
+  retained in self-contained HTML exports without external image/font assets.
 - Add validated, portable saved-result bundles and explicit CSV import with
   schema, duplicate-field and numeric-value validation.
 - Add a loopback-only saved-results workspace with packaged Plotly.js charts:

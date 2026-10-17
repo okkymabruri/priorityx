@@ -16,6 +16,7 @@ from socketserver import TCPServer
 import threading
 import tempfile
 from typing import Any
+from urllib.parse import quote
 import webbrowser
 
 from .results import ResultBundle, ResultValidationError, import_results_csv, strict_json_loads
@@ -34,7 +35,11 @@ def build_html(bundle: ResultBundle, settings=None, *, service_mode: bool = Fals
     prepared = prepare_bundle(bundle)
     resolved = resolve_settings(settings, prepared)
     web = files("priorityx").joinpath("web")
+    mark = web.joinpath("priorityx-mark.svg").read_text(encoding="utf-8")
+    favicon = mark.replace('<g ', '<rect width="64" height="64" rx="12" fill="#f5f8f7"/><g ', 1)
     replacements = {"__LIBRARY__": web.joinpath("plotly-basic-4.1.2.min.js").read_text(encoding="utf-8"),
+                    "__LOGO__": mark,
+                    "__FAVICON__": "data:image/svg+xml," + quote(favicon, safe=""),
                     "__STYLE__": web.joinpath("style.css").read_text(encoding="utf-8"),
                     "__APP__": web.joinpath("app.js").read_text(encoding="utf-8"),
                     "__DATA__": _embedded({"bundle": bundle.to_dict(), "prepared": prepared}),

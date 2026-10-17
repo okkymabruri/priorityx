@@ -29,7 +29,7 @@ def bump_version(version, part):
 
 
 def update_version_file(new_version):
-    """Update version in pyproject.toml and __init__.py."""
+    """Update package versions and refresh the lockfile before committing."""
     # update pyproject.toml
     pyproject_path = Path("pyproject.toml")
     content = pyproject_path.read_text()
@@ -50,6 +50,7 @@ def update_version_file(new_version):
     )
     init_path.write_text(new_init_content)
     print(f"Updated __init__.py to v{new_version}")
+    subprocess.run(["uv", "lock"], check=True)
 
 
 def git_commit_and_tag(version):
@@ -65,7 +66,7 @@ def git_commit_and_tag(version):
 
     # commit version changes
     subprocess.run(
-        ["git", "add", "pyproject.toml", "src/priorityx/__init__.py"], check=True
+        ["git", "add", "pyproject.toml", "src/priorityx/__init__.py", "uv.lock"], check=True
     )
     subprocess.run(["git", "commit", "-m", f"Bump version to {version}"], check=True)
     print("Committed version changes")

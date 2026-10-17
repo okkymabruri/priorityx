@@ -24,6 +24,8 @@ Only major releases (v0.x.0) are listed.
   reopening in CI; require the quality matrix before release builds.
 - Start the numeric loopback workspace without reverse-DNS resolution, avoiding
   launch stalls when the host resolver is unavailable.
+- Refresh and include the lockfile when preparing a version bump so locked
+  installation checks remain valid before tagging.
 
 ---
 

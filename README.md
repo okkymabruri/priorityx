@@ -3,12 +3,16 @@
 [![PyPI version](https://badge.fury.io/py/priorityx.svg)](https://badge.fury.io/py/priorityx)
 [![Downloads](https://static.pepy.tech/badge/priorityx)](https://pepy.tech/project/priorityx)
 [![Tests](https://github.com/okkymabruri/priorityx/workflows/Tests/badge.svg)](https://github.com/okkymabruri/priorityx/actions)
-[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Entity prioritization and escalation detection using GLMM statistical models
 
 ## Installation
+
+The v0.7.0 development branch requires Python 3.12 or later. This checkout uses
+Python 3.12 by default for development; published v0.6.3 keeps its original Python
+requirement.
 
 ```bash
 pip install priorityx

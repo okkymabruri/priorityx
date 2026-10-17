@@ -138,7 +138,13 @@ def main():
     threading.Thread(target=lambda: lines.put(process.stdout.readline()), daemon=True).start()
     checks = []
     try:
-        line = lines.get(timeout=30).strip()
+        try:
+            line = lines.get(timeout=30).strip()
+        except queue.Empty as exc:
+            if sys.platform == "darwin" and shutil.which("sample"):
+                subprocess.run(["sample", str(process.pid), "1", "-file", str(output / "startup-sample.log")],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15, check=False)
+            raise RuntimeError(f"Console startup exceeded 30 seconds (exit={process.poll()}); see app stderr/startup sample.") from exc
         if not line.startswith("PriorityX workspace: http://127.0.0.1:"):
             raise RuntimeError(f"Unexpected startup response: {line!r}")
         url = line.split(": ", 1)[1]

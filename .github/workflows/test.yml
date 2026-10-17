@@ -23,6 +23,7 @@ jobs:
 
     env:
       UV_PYTHON: ${{ matrix.python-version }}
+      MPLBACKEND: Agg
 
     steps:
       - uses: actions/checkout@v6

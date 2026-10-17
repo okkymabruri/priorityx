@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 import http.client
 import json
+import socket
 import threading
 
 import pytest
@@ -63,6 +64,16 @@ def test_workspace_activation_reload_and_cross_origin_boundaries():
         assert request(workspace, "GET", "/api/bootstrap", headers={"Host": "example.invalid"})[0] == 403
         assert request(workspace, "GET", "/../pyproject.toml")[0] == 404
         assert request(workspace, "POST", "/api/prepare", {"bundle_json": '{"datasets":[],"datasets":[]}'})[0] == 400
+
+
+def test_loopback_startup_works_when_hostname_resolution_is_unavailable(monkeypatch):
+    def unavailable(*_args, **_kwargs):
+        raise OSError("Hostname resolution is unavailable")
+
+    monkeypatch.setattr(socket, "getfqdn", unavailable)
+    with server() as workspace:
+        assert workspace.url.startswith("http://127.0.0.1:")
+        assert request(workspace, "GET", "/api/bootstrap")[0] == 200
 
 
 def test_csv_import_requires_explicit_roles_and_validates_exact_data():

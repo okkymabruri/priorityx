@@ -22,6 +22,8 @@ Only major releases (v0.x.0) are listed.
   Python 3.12, 3.13 and 3.14 on Linux, macOS and Windows.
 - Check installed-wheel app launch, spawned exports and disconnected HTML
   reopening in CI; require the quality matrix before release builds.
+- Start the numeric loopback workspace without reverse-DNS resolution, avoiding
+  launch stalls when the host resolver is unavailable.
 
 ---
 

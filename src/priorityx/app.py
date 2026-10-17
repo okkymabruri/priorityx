@@ -12,6 +12,7 @@ import io
 import json
 import multiprocessing
 from pathlib import Path
+from socketserver import TCPServer
 import threading
 import tempfile
 from typing import Any
@@ -123,6 +124,12 @@ class WorkspaceServer(ThreadingHTTPServer):
         self.state_lock = threading.Lock()
         self.render_lock = threading.Lock()
         super().__init__(("127.0.0.1", port), WorkspaceHandler)
+
+    def server_bind(self):
+        # HTTPServer.server_bind calls getfqdn(), which can wait on a network
+        # resolver even for loopback. This workspace uses a numeric local host.
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address
 
     @property
     def url(self):

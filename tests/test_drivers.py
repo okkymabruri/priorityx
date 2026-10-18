@@ -8,6 +8,7 @@ from priorityx.tracking.drivers import (
     classify_priority,
     extract_transition_drivers,
     _calculate_quarter_dates,
+    display_transition_drivers,
 )
 
 
@@ -416,3 +417,251 @@ def test_extract_transition_drivers_backwards_compat():
     assert "transition" in analysis
     assert analysis["transition"]["from_quarter"] == "2024-Q2"
     assert analysis["transition"]["to_quarter"] == "2024-Q3"
+    canonical = extract_transition_drivers(
+        movement_data, df_raw, "Service Z", period_from="2024-Q2", period_to="2024-Q3",
+        entity_col="service", timestamp_col="date", subcategory_cols=["category"],
+        top_n=2, min_delta=1,
+    )
+    assert analysis == canonical
+
+
+def _driver_fixture(from_values, to_values, *, from_period="2024-Q2", to_period="2024-Q3"):
+    movement = pd.DataFrame(
+        {
+            "entity": ["Service D", "Service D"],
+            "quarter": [from_period, to_period],
+            "period_quadrant": ["Q3", "Q2"],
+            "period_x": [-0.2, -0.1],
+            "period_y": [-0.1, 0.2],
+            "cumulative_count": [100, 400],
+        }
+    )
+    dates = [pd.Timestamp("2024-04-01")] * len(from_values)
+    dates += [pd.Timestamp("2024-07-01")] * len(to_values)
+    raw = pd.DataFrame(
+        {
+            "service": ["Service D"] * (len(from_values) + len(to_values)),
+            "date": dates,
+            "category": list(from_values) + list(to_values),
+        }
+    )
+    return movement, raw
+
+
+def _analyze_fixture(movement, raw, **kwargs):
+    return extract_transition_drivers(
+        movement, raw, "Service D", period_from="2024-Q2", period_to="2024-Q3",
+        entity_col="service", timestamp_col="date", subcategory_cols=["category"],
+        min_delta=1, **kwargs,
+    )
+
+
+def test_driver_contributions_use_net_period_change_and_include_decreases():
+    """Category percentages use raw-period net change and signed decreases."""
+    movement, raw = _driver_fixture(
+        ["A"] * 50 + ["B"] * 50,
+        ["A"] * 80 + ["B"] * 40,
+    )
+    analysis = extract_transition_drivers(
+        movement,
+        raw,
+        "Service D",
+        period_from="2024-Q2",
+        period_to="2024-Q3",
+        entity_col="service",
+        timestamp_col="date",
+        subcategory_cols=["category"],
+        min_delta=1,
+    )
+    result = analysis["subcategory_drivers"]["category"]
+    assert result["net_change"] == 20
+    assert result["reconciliation"]["matches_net_change"] is True
+    assert result["top_drivers"][0]["name"] == "A"
+    assert result["top_drivers"][0]["percent_of_change"] == 150.0
+    assert result["top_decreases"][0]["name"] == "B"
+    assert result["top_decreases"][0]["percent_of_change"] == -50.0
+    assert result["top_n_explain_pct"] == 150.0
+    assert result["top_n_decrease_pct"] == -50.0
+
+
+def test_driver_zero_net_marks_percentages_undefined_and_validates_duplicates(capsys):
+    """Zero net changes stay visible without a misleading percentage."""
+    movement, raw = _driver_fixture(["A"] * 10 + ["B"] * 10, ["A"] * 15 + ["B"] * 5)
+    analysis = extract_transition_drivers(
+        movement,
+        raw,
+        "Service D",
+        period_from="2024-Q2",
+        period_to="2024-Q3",
+        entity_col="service",
+        timestamp_col="date",
+        subcategory_cols=["category"],
+        min_delta=1,
+    )
+    result = analysis["subcategory_drivers"]["category"]
+    assert result["net_change"] == 0
+    assert result["percentage_defined"] is False
+    assert result["top_drivers"][0]["percent_of_change"] is None
+    assert result["top_n_explain_pct"] is None
+    display_transition_drivers(analysis)
+    text = capsys.readouterr().out
+    assert "not defined" in text and "decrease B" in text
+    duplicate = pd.concat([movement, movement.iloc[[0]]], ignore_index=True)
+    try:
+        extract_transition_drivers(
+            duplicate,
+            raw,
+            "Service D",
+            period_from="2024-Q2",
+            period_to="2024-Q3",
+            entity_col="service",
+            timestamp_col="date",
+        )
+    except ValueError as exc:
+        assert "duplicate entity-period" in str(exc)
+    else:
+        raise AssertionError("duplicate movement rows were accepted")
+
+
+def test_numeric_driver_reports_excluded_values_and_constant_bins():
+    """Numeric bins handle constants and report invalid/outside values."""
+    movement, raw = _driver_fixture(["A"] * 3, ["A"] * 3)
+    raw["amount"] = [1.0, 1.0, float("nan"), 1.0, float("inf"), 9.0]
+    analysis = extract_transition_drivers(
+        movement,
+        raw,
+        "Service D",
+        period_from="2024-Q2",
+        period_to="2024-Q3",
+        entity_col="service",
+        timestamp_col="date",
+        subcategory_cols=[],
+        numeric_cols={"amount": [0, 2]},
+        min_delta=1,
+    )
+    result = analysis["numeric_drivers"]["amount"]
+    assert result["bin_edges"] == [0.0, 2.0]
+    assert result["excluded_values"]["nonfinite"] == 1
+    assert result["excluded_values"]["missing"] == 1
+    assert result["excluded_values"]["outside_bins"] == 1
+    assert result["coverage"]["from"]["included"] == 2
+    assert result["coverage"]["to"]["included"] == 1
+    assert result["reconciliation"]["unaccounted_delta"] == 0
+
+
+def test_driver_net_decline_missing_labels_and_stable_ranking():
+    movement, raw = _driver_fixture(["A"] * 5 + ["B"] * 5 + [None] * 2,
+                                    ["A"] + ["B"] + [None] * 3 + ["Missing"])
+    original_raw, original_movement = raw.copy(deep=True), movement.copy(deep=True)
+    result = _analyze_fixture(movement, raw)["subcategory_drivers"]["category"]
+    assert result["net_change"] == -6
+    assert [d["name"] for d in result["top_decreases"]] == ["A", "B"]
+    assert result["top_decreases"][0]["percent_of_change"] == 66.7
+    assert {d["name"] for d in result["top_drivers"]} == {None, "Missing"}
+    assert result["coverage"]["to"]["missing"] == 3
+    assert result["reconciliation"]["delta_sum"] == -6
+    shuffled = _analyze_fixture(movement, raw.sample(frac=1, random_state=4))["subcategory_drivers"]["category"]
+    assert shuffled == result
+    pd.testing.assert_frame_equal(raw, original_raw)
+    pd.testing.assert_frame_equal(movement, original_movement)
+
+
+@pytest.mark.parametrize("empty_from,empty_to", [(True, True), (True, False), (False, True)])
+def test_driver_empty_windows_keep_reconciliation(empty_from, empty_to):
+    movement, raw = _driver_fixture([] if empty_from else ["A", None], [] if empty_to else ["B"])
+    result = _analyze_fixture(movement, raw)["subcategory_drivers"]["category"]
+    assert result["reconciliation"]["matches_net_change"] is True
+    assert result["period_count_from"] == (0 if empty_from else 2)
+    assert result["period_count_to"] == (0 if empty_to else 1)
+
+
+@pytest.mark.parametrize("values,expected_bins", [([1.0] * 6, 1), ([0, 0, 1, 1, 1, 1], 2)])
+def test_numeric_constant_and_tied_quantiles(values, expected_bins):
+    movement, raw = _driver_fixture(["A"] * 2, ["A"] * 4)
+    raw["amount"] = values
+    result = _analyze_fixture(movement, raw, numeric_cols={"amount": 4})["numeric_drivers"]["amount"]
+    assert len(result["bin_edges"]) == expected_bins + 1
+    assert result["excluded_values"]["total"] == 0
+    assert result["reconciliation"]["unaccounted_delta"] == 0
+
+
+def test_numeric_exact_boundaries_and_bin_order():
+    movement, raw = _driver_fixture([], ["A"] * 6)
+    raw["amount"] = [0, 0.05, 0.1, 0.15, 0.2, 0.25]
+    result = _analyze_fixture(movement, raw, numeric_cols={"amount": [0, .1, .2]})["numeric_drivers"]["amount"]
+    assert [d["bin"] for d in result["top_drivers"]] == ["[0.0, 0.1]", "(0.1, 0.2]"]
+    assert [d["count_to"] for d in result["top_drivers"]] == [3, 2]
+    assert result["excluded_values"]["outside_bins"] == 1
+
+
+@pytest.mark.parametrize("spec", [0, True, [1, 1], [2, 1], [0, np.inf], [[0, 1]], "bad"])
+def test_numeric_invalid_bins_are_rejected_even_for_empty_windows(spec):
+    movement, raw = _driver_fixture([], [])
+    raw["amount"] = pd.Series(dtype=float)
+    with pytest.raises(ValueError, match="Numeric bin"):
+        _analyze_fixture(movement, raw, numeric_cols={"amount": spec})
+
+
+@pytest.mark.parametrize("defect", ["duplicate", "score", "date", "count", "columns", "category", "numeric"])
+def test_driver_rejects_malformed_required_inputs(defect):
+    movement, raw = _driver_fixture(["A"], ["B"])
+    kwargs = {}
+    if defect == "duplicate":
+        movement = pd.concat([movement, movement.iloc[[0]]])
+    elif defect == "score":
+        movement.loc[0, "period_x"] = np.inf
+    elif defect == "date":
+        raw.loc[0, "date"] = pd.NaT
+    elif defect == "count":
+        movement.loc[0, "cumulative_count"] = -1
+    elif defect == "columns":
+        movement = movement.drop(columns=["period_y"])
+    elif defect == "category":
+        raw = raw.drop(columns=["category"])
+    elif defect == "numeric":
+        kwargs["numeric_cols"] = {"absent": 2}
+    with pytest.raises(ValueError):
+        _analyze_fixture(movement, raw, **kwargs)
+
+
+def test_driver_windows_include_start_and_exclude_end_with_timezone():
+    movement, raw = _driver_fixture(["A"] * 2, ["B"] * 3)
+    raw["date"] = pd.to_datetime(["2024-04-01", "2024-06-30 23:59:59", "2024-07-01", "2024-09-30 23:59:59", "2024-10-01"], format="mixed").tz_localize("Asia/Jakarta")
+    result = _analyze_fixture(movement, raw)
+    assert result["magnitude"]["period_counts"] == {"count_from": 2, "count_to": 2, "absolute_delta": 0}
+
+
+def test_driver_dimension_coverage_and_truncation_are_separate():
+    movement, raw = _driver_fixture(["A"] * 5 + ["B"] * 5,
+                                    ["A"] * 8 + ["B"] * 8 + ["C"])
+    result = extract_transition_drivers(
+        movement, raw, "Service D", "2024-Q2", "2024-Q3", entity_col="service",
+        subcategory_cols=["category"], top_n=1, min_delta=2,
+    )["subcategory_drivers"]["category"]
+    assert [d["name"] for d in result["top_drivers"]] == ["A"]
+    assert result["top_n_explain_pct"] == 42.9
+    assert result["reconciliation"]["delta_sum"] == 7
+    assert result["coverage"]["to"]["included"] == 17
+
+
+def test_numeric_empty_and_nonfinite_values_keep_complete_result_schema(capsys):
+    movement, raw = _driver_fixture(["A"], ["A", "A"])
+    raw["amount"] = [np.nan, np.inf, -np.inf]
+    analysis = _analyze_fixture(movement, raw, numeric_cols={"amount": 3})
+    result = analysis["numeric_drivers"]["amount"]
+    assert result["bin_edges"] == []
+    assert result["top_drivers"] == result["top_decreases"] == []
+    assert result["percentage_denominator"] == 1
+    assert result["reconciliation"]["excluded_delta"] == 1
+    assert result["reconciliation"]["unaccounted_delta"] == 0
+    display_transition_drivers(analysis)
+    assert "TRANSITION DRIVER ANALYSIS" in capsys.readouterr().out
+    raw["amount"] = ["invalid", "2", "3"]
+    with pytest.raises(ValueError, match="non-numeric"):
+        _analyze_fixture(movement, raw, numeric_cols={"amount": 3})
+
+
+@pytest.mark.parametrize("label", ["2025-01", "2025-Q0", "2025-Q5", "2025-Q1trailing", None])
+def test_driver_rejects_nonquarter_labels(label):
+    with pytest.raises(ValueError, match="quarter format"):
+        _calculate_quarter_dates(label)

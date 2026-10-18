@@ -407,10 +407,35 @@ These descriptive breakdowns do not identify causal effects.
   - `priority`: priority tier, trigger reason, spike axis
   - `meta`: diagnostic flags (e.g., whether subcategory columns were auto-detected)
 
-Categorical/numeric driver keys are present when their analyses run. A requested
-subcategory list with no existing columns falls back to auto-detection; inspect
+Categorical/numeric driver keys are present when their analyses run. An omitted
+`subcategory_cols` list enables auto-detection; an empty list disables category
+breakdowns, and unknown explicit columns raise `ValueError`. Inspect
 `meta["subcategory_columns_used"]` and `meta["subcategory_columns_auto_detected"]`.
 Numeric bins describe within-bin event counts, not the sum of the metric.
+
+Driver contribution percentages use the **net difference between the two raw
+period totals**. For a net increase of 20, a category increase of 30 contributes
+150% and a decrease of 10 contributes -50%. Percentages may exceed 100% and are
+`None` when the net change is zero. The text summary prints “not defined”.
+Existing `top_drivers` lists contain increases; additive `top_decreases` lists
+contain decreases ranked by magnitude. Each list respects `top_n` and `min_delta`.
+The retained `top_n_explain_pct` key gives the increases' combined percentage of
+net change; `top_n_decrease_pct` gives the decreases' combined percentage.
+`top_n_increase_coverage_pct` and `top_n_decrease_coverage_pct` separately give
+the share of all positive or negative deltas covered by each truncated list.
+`percentage_denominator`, `percentage_defined`, period counts and reconciliation
+metadata make that distinction explicit. Do not sum percentages across dimensions.
+Numeric results report per-period missing, nonfinite and outside-bin exclusions,
+so included-bin deltas plus excluded-count deltas reconcile to the net change. Missing
+categories remain a separate `None` value; caller labels are not rewritten.
+
+Explicit category/numeric column names and bin edges are validated. Movement
+inputs with duplicate entity-period rows are rejected rather than choosing one
+arbitrarily. Bin labels use inclusive/exclusive interval notation matching the
+actual shared bins across both periods.
+Constant numeric data use one singleton interval `[value, value]`; tied quantiles
+can reduce the requested number of bins. Declines use the same signed net-change
+formula, so a decreasing category contributes positively to an overall decline.
 
 #### Driver period windows
 

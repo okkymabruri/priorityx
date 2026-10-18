@@ -265,10 +265,9 @@ def extract_transition_drivers(
     min_subcategory_delta: int = None,
 ) -> Dict:
     """
-    Extract key drivers of a quadrant transition.
+    Describe event-count breakdowns associated with a quadrant transition.
 
-    Analyzes what drove a specific entity to transition between quadrants,
-    including count changes, score changes, and associated sub-categories.
+    Compares count changes, saved score changes and associated sub-categories.
     This is descriptive, not causal attribution. Raw-event windows use matching
     calendar quarters; reported weekly averages use a fixed 13-week divisor.
     See _calculate_quarter_dates before interpreting results.
@@ -285,12 +284,13 @@ def extract_transition_drivers(
         period_to: Saved quarterly label (e.g., "2024-Q3").
         entity_col: Entity column name in df_raw
         timestamp_col: Timestamp column name in df_raw
-        subcategory_cols: List of categorical columns to analyze as drivers
+        subcategory_cols: Explicit categorical column names; None auto-detects,
+            and an empty list disables categorical breakdowns.
         numeric_cols: Dict of numeric columns to bin and analyze.
             - Explicit bins: {"amount": [0, 1e6, 5e6, 10e6]}
             - Auto quantiles: {"resolution_days": 4} (4 quantile bins)
-        top_n: Number of top drivers to return per dimension
-        min_delta: Minimum count change to include as driver
+        top_n: Number of increases and decreases to return per dimension.
+        min_delta: Minimum absolute count change to include (at least one row).
 
     Returns:
         Dictionary with structure:
@@ -302,6 +302,13 @@ def extract_transition_drivers(
             "priority": {...},             # Priority classification
             "meta": {...},                 # Diagnostic metadata
         }
+
+        Each dimension retains top_drivers (increases) and adds top_decreases.
+        Contributions and top_n_explain_pct divide signed deltas by the net
+        raw-period count difference, not cumulative counts. Zero net change
+        yields None; offsets can produce percentages beyond 100%. Coverage and
+        reconciliation describe each dimension independently. Numeric bins
+        report excluded missing/nonfinite/outside values by period.
 
     Examples:
         >>> # Basic analysis
@@ -330,8 +337,52 @@ def extract_transition_drivers(
     if period_from is None or period_to is None:
         raise ValueError("period_from and period_to are required")
 
+    if not isinstance(movement_df, pd.DataFrame) or not isinstance(df_raw, pd.DataFrame):
+        raise TypeError("movement_df and df_raw must be pandas DataFrames")
+    if not movement_df.columns.is_unique or not df_raw.columns.is_unique:
+        raise ValueError("Input DataFrames must have unique column names")
+    required_movement = {"entity", "quarter", "period_quadrant", "period_x", "period_y"}
+    missing_movement = sorted(required_movement - set(movement_df.columns))
+    if missing_movement:
+        raise ValueError(f"movement_df is missing required columns: {missing_movement}")
+    for col in (entity_col, timestamp_col):
+        if col not in df_raw.columns:
+            raise ValueError(f"df_raw is missing required column: {col!r}")
+    if isinstance(top_n, bool) or not isinstance(top_n, int) or top_n < 1:
+        raise ValueError("top_n must be a positive integer")
+    if isinstance(min_delta, bool) or not isinstance(min_delta, (int, float)) or not np.isfinite(min_delta) or min_delta < 0:
+        raise ValueError("min_delta must be non-negative")
+    if subcategory_cols is not None:
+        if not isinstance(subcategory_cols, list) or not all(isinstance(col, str) for col in subcategory_cols):
+            raise ValueError("subcategory_cols must be a list of column names")
+        invalid = [col for col in subcategory_cols if col not in df_raw.columns]
+        if invalid:
+            raise ValueError(f"Unknown subcategory columns: {invalid}")
+    if numeric_cols is not None:
+        if not isinstance(numeric_cols, dict):
+            raise TypeError("numeric_cols must be a mapping of column names to bins")
+        invalid = [col for col in numeric_cols if col not in df_raw.columns]
+        if invalid:
+            raise ValueError(f"Unknown numeric columns: {invalid}")
+
+    movement_keys = movement_df[["entity", "quarter"]]
+    if movement_keys.isna().any().any():
+        raise ValueError("movement_df entity and quarter values must not be missing")
+    if movement_keys.duplicated().any():
+        duplicate_keys = movement_keys[movement_keys.duplicated(keep=False)].drop_duplicates().to_dict("records")
+        raise ValueError(f"movement_df has duplicate entity-period rows: {duplicate_keys}")
+
     df_raw = df_raw.copy()
-    df_raw[timestamp_col] = pd.to_datetime(df_raw[timestamp_col])
+    try:
+        df_raw[timestamp_col] = pd.to_datetime(df_raw[timestamp_col], errors="raise")
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"df_raw timestamp column {timestamp_col!r} contains invalid dates") from exc
+    if df_raw[timestamp_col].isna().any():
+        raise ValueError(f"df_raw timestamp column {timestamp_col!r} contains missing dates")
+    if df_raw[entity_col].isna().any():
+        raise ValueError(f"df_raw entity column {entity_col!r} contains missing identifiers")
+    if not pd.api.types.is_datetime64_any_dtype(df_raw[timestamp_col]):
+        raise ValueError(f"df_raw timestamp column {timestamp_col!r} must use one timezone")
 
     # get transition data from movement_df
     period_col = "quarter"
@@ -350,6 +401,16 @@ def extract_transition_drivers(
 
     from_row = from_data.iloc[0]
     to_row = to_data.iloc[0]
+    for row in (from_row, to_row):
+        for col in ("period_x", "period_y"):
+            if not isinstance(row[col], (int, float, np.number)) or not np.isfinite(row[col]):
+                raise ValueError(f"movement_df {col} must contain finite numeric scores")
+        if not isinstance(row["period_quadrant"], str) or not re.fullmatch(r"Q[1-4](?:\*(?:XY|X|Y))?", row["period_quadrant"]):
+            raise ValueError("movement_df period_quadrant must contain Q1–Q4 labels")
+        if "cumulative_count" in row.index:
+            count = row["cumulative_count"]
+            if not isinstance(count, (int, float, np.number)) or not np.isfinite(count) or count < 0 or count != int(count):
+                raise ValueError("movement_df cumulative_count must contain non-negative integer counts")
 
     from_quadrant = from_row["period_quadrant"]
     to_quadrant = to_row["period_quadrant"]
@@ -357,17 +418,23 @@ def extract_transition_drivers(
     # period-specific complaints (per quarter) for hybrid analysis
     from_start, from_end = _calculate_quarter_dates(period_from)
     to_start, to_end = _calculate_quarter_dates(period_to)
+    if period_from >= period_to:
+        raise ValueError("period_from must precede period_to")
+    timezone = df_raw[timestamp_col].dt.tz
+
+    def boundary(value: str) -> pd.Timestamp:
+        return pd.Timestamp(value, tz=timezone)
 
     entity_complaints = df_raw[df_raw[entity_col] == entity_name]
 
     from_period_data = entity_complaints[
-        (entity_complaints[timestamp_col] >= pd.Timestamp(from_start))
-        & (entity_complaints[timestamp_col] < pd.Timestamp(from_end))
+        (entity_complaints[timestamp_col] >= boundary(from_start))
+        & (entity_complaints[timestamp_col] < boundary(from_end))
     ]
 
     to_period_data = entity_complaints[
-        (entity_complaints[timestamp_col] >= pd.Timestamp(to_start))
-        & (entity_complaints[timestamp_col] < pd.Timestamp(to_end))
+        (entity_complaints[timestamp_col] >= boundary(to_start))
+        & (entity_complaints[timestamp_col] < boundary(to_end))
     ]
 
     from_period_count = len(from_period_data)
@@ -472,13 +539,15 @@ def extract_transition_drivers(
         timestamp_col,
         custom_aliases=custom_driver_aliases,
     )
+    if subcategory_cols == []:
+        effective_subcats, auto_detected_subcats = [], False
 
     if effective_subcats:
         result["subcategory_drivers"] = _analyze_subcategory_drivers(
             from_period_data,
             to_period_data,
             effective_subcats,
-            absolute_delta,
+            period_increase,
             top_n=top_n,
             min_delta=min_delta,
         )
@@ -489,7 +558,7 @@ def extract_transition_drivers(
             from_period_data,
             to_period_data,
             numeric_cols,
-            absolute_delta,
+            period_increase,
             top_n=top_n,
             min_delta=min_delta,
         )
@@ -499,6 +568,10 @@ def extract_transition_drivers(
         "subcategory_columns_auto_detected": auto_detected_subcats,
         "custom_driver_columns_loaded": bool(custom_driver_aliases),
         "numeric_columns_used": list(numeric_cols.keys()) if numeric_cols else [],
+        "percentage_basis": "net_raw_period_count_change",
+        "percentage_denominator": period_increase,
+        "period_windows": {"from": [from_start, from_end], "to": [to_start, to_end]},
+        "weeks_per_quarter": weeks_per_quarter,
     }
 
     return result
@@ -547,234 +620,245 @@ def _summarize_spike_drivers(priority_info: Dict, magnitude: Dict) -> Dict:
     }
 
 
+def _driver_percent(delta: int, net_change: int) -> Optional[float]:
+    """Return a signed contribution to the net period change."""
+    if net_change == 0:
+        return None
+    return round(delta / net_change * 100, 1)
+
+
+def _coverage_percent(value: int, total: int) -> Optional[float]:
+    """Return coverage for one direction of the category deltas."""
+    if total == 0:
+        return None
+    return round(value / total * 100, 1)
+
+
+def _category_counts(data: pd.DataFrame, column: str) -> Dict:
+    """Count categories while retaining missing values as a display value."""
+    series = data[column]
+    counts = series[series.notna()].value_counts()
+    rows = {}
+    for value, count in counts.items():
+        rows[("value", type(value).__name__, repr(value))] = {
+                "value": value,
+                "count": int(count),
+                "sort_key": (str(value), type(value).__name__, repr(value)),
+            }
+    if series.isna().any():
+        rows[("missing",)] = {"value": None, "count": int(series.isna().sum()),
+                              "sort_key": ("", "missing", "")}
+    return rows
+
+
+def _driver_summary(
+    comparison: pd.DataFrame,
+    *,
+    value_key: str,
+    net_change: int,
+    top_n: int,
+    min_delta: int,
+    include_type: bool = False,
+) -> Dict:
+    """Build additive increase/decrease lists and reconciliation metadata."""
+    threshold = max(1, min_delta)
+    comparison = comparison.copy()
+    comparison["delta"] = comparison["count_to"] - comparison["count_from"]
+    comparison["percent_of_change"] = comparison["delta"].map(
+        lambda delta: _driver_percent(int(delta), net_change)
+    )
+    if include_type:
+        comparison["driver_type"] = np.select(
+            [comparison["count_from"].eq(0), comparison["delta"].gt(comparison["count_from"])],
+            ["new_emergence", "acceleration"],
+            default="deceleration",
+        )
+
+    increase = comparison[comparison["delta"] >= threshold].copy()
+    decrease = comparison["delta"] <= -threshold
+    decrease = comparison[decrease].copy()
+    increase = increase.sort_values(["delta", "sort_key"], ascending=[False, True], kind="stable").head(top_n)
+    decrease = decrease.assign(_magnitude=decrease["delta"].abs()).sort_values(
+        ["_magnitude", "sort_key"], ascending=[False, True], kind="stable"
+    ).head(top_n)
+
+    def serialize(row: pd.Series) -> Dict:
+        item = {
+            value_key: row["value"],
+            "count_from": int(row["count_from"]),
+            "count_to": int(row["count_to"]),
+            "delta": int(row["delta"]),
+            "percent_of_change": _driver_percent(int(row["delta"]), net_change),
+        }
+        if include_type:
+            item["driver_type"] = row["driver_type"]
+        return item
+
+    increase_rows = [serialize(row) for _, row in increase.iterrows()]
+    decrease_rows = [serialize(row) for _, row in decrease.iterrows()]
+    all_delta = int(comparison["delta"].sum())
+    increase_total = int(comparison.loc[comparison["delta"] > 0, "delta"].sum())
+    decrease_total = int(-comparison.loc[comparison["delta"] < 0, "delta"].sum())
+    selected_increase = sum(item["delta"] for item in increase_rows)
+    selected_decrease = sum(item["delta"] for item in decrease_rows)
+    return {
+        "top_drivers": increase_rows,
+        "top_decreases": decrease_rows,
+        "top_n_explain_pct": _driver_percent(selected_increase, net_change),
+        "top_n_decrease_pct": _driver_percent(selected_decrease, net_change),
+        "top_n_increase_coverage_pct": _coverage_percent(selected_increase, increase_total),
+        "top_n_decrease_coverage_pct": _coverage_percent(-selected_decrease, decrease_total),
+        "period_count_from": int(comparison["count_from"].sum()),
+        "period_count_to": int(comparison["count_to"].sum()),
+        "net_change": int(net_change),
+        "percentage_basis": "net_raw_period_count_change",
+        "percentage_denominator": int(net_change),
+        "percentage_defined": net_change != 0,
+        "reconciliation": {
+            "delta_sum": all_delta,
+            "unaccounted_delta": net_change - all_delta,
+            "matches_net_change": all_delta == net_change,
+        },
+    }
+
+
 def _analyze_subcategory_drivers(
     from_data: pd.DataFrame,
     to_data: pd.DataFrame,
     subcategory_cols: List[str],
-    absolute_delta: int,
+    net_change: int,
     top_n: int = 3,
     min_delta: int = 1,
 ) -> Dict:
-    """Analyze which subcategories drove the transition."""
+    """Analyze category changes against the raw period-count difference."""
     drivers_by_subcategory = {}
-
     for subcat_col in subcategory_cols:
-        if subcat_col not in from_data.columns and subcat_col not in to_data.columns:
-            continue
-
-        # aggregate by subcategory
-        if subcat_col in from_data.columns:
-            from_subcat = (
-                from_data.groupby(subcat_col)
-                .size()
-                .reset_index(name="count")
-                .sort_values("count", ascending=False)
-            )
-        else:
-            from_subcat = pd.DataFrame(columns=[subcat_col, "count"])
-
-        if subcat_col in to_data.columns:
-            to_subcat = (
-                to_data.groupby(subcat_col)
-                .size()
-                .reset_index(name="count")
-                .sort_values("count", ascending=False)
-            )
-        else:
-            to_subcat = pd.DataFrame(columns=[subcat_col, "count"])
-
-        # merge and calculate deltas
-        comparison = pd.merge(
-            from_subcat,
-            to_subcat,
-            on=subcat_col,
-            how="outer",
-            suffixes=("_from", "_to"),
-        ).fillna(0)
-
-        comparison["delta"] = comparison["count_to"] - comparison["count_from"]
-        if absolute_delta > 0:
-            comparison["percent_of_change"] = comparison["delta"] / absolute_delta * 100
-        else:
-            comparison["percent_of_change"] = 0.0
-
-        # classify driver type
-        def classify_driver_type(row):
-            if row["count_from"] == 0:
-                return "new_emergence"
-            elif row["delta"] > row["count_from"]:
-                return "acceleration"
-            else:
-                return "deceleration"
-
-        comparison["driver_type"] = comparison.apply(classify_driver_type, axis=1)
-
-        min_threshold = max(1, min_delta)
-        filtered = comparison[comparison["delta"] >= min_threshold]
-        top_drivers = filtered.nlargest(top_n, "delta").to_dict("records")
-
-        drivers_list = []
-        for driver in top_drivers:
-            drivers_list.append(
-                {
-                    "name": driver[subcat_col],
-                    "count_from": int(driver["count_from"]),
-                    "count_to": int(driver["count_to"]),
-                    "delta": int(driver["delta"]),
-                    "percent_of_change": round(driver["percent_of_change"], 1),
-                    "driver_type": driver["driver_type"],
-                }
-            )
-
-        # calculate explanation power (share of cumulative volume delta)
-        if absolute_delta > 0:
-            top_explain_pct = (
-                sum(d["delta"] for d in drivers_list) / absolute_delta * 100
-            )
-        else:
-            top_explain_pct = 0.0
-
-        drivers_by_subcategory[subcat_col] = {
-            "top_drivers": drivers_list,
-            "top_n_explain_pct": round(top_explain_pct, 1),
+        from_counts = _category_counts(from_data, subcat_col)
+        to_counts = _category_counts(to_data, subcat_col)
+        rows = []
+        for key in from_counts.keys() | to_counts.keys():
+            item = from_counts.get(key) or to_counts[key]
+            rows.append({"value": item["value"], "sort_key": item["sort_key"],
+                         "count_from": from_counts.get(key, {}).get("count", 0),
+                         "count_to": to_counts.get(key, {}).get("count", 0)})
+        comparison = pd.DataFrame(rows, columns=["value", "sort_key", "count_from", "count_to"])
+        comparison["value"] = pd.Series([row["value"] for row in rows], dtype=object)
+        summary = _driver_summary(
+            comparison,
+            value_key="name",
+            net_change=net_change,
+            top_n=top_n,
+            min_delta=min_delta,
+            include_type=True,
+        )
+        summary["coverage"] = {
+            "from": {"total": len(from_data), "included": len(from_data),
+                     "missing": int(from_data[subcat_col].isna().sum())},
+            "to": {"total": len(to_data), "included": len(to_data),
+                   "missing": int(to_data[subcat_col].isna().sum())},
         }
-
+        drivers_by_subcategory[subcat_col] = summary
     return drivers_by_subcategory
+
+
+def _validated_bin_spec(column: str, spec):
+    """Validate bins even when both selected raw periods are empty."""
+    if isinstance(spec, bool):
+        raise ValueError(f"Numeric bins for {column!r} must be a positive integer or ordered edges")
+    if isinstance(spec, int):
+        if spec < 1:
+            raise ValueError(f"Numeric bin count for {column!r} must be positive")
+        return spec
+    try:
+        if not isinstance(spec, (list, tuple, np.ndarray)):
+            raise ValueError
+        edges = np.asarray(spec, dtype=float)
+        if edges.ndim != 1 or len(edges) < 2 or not np.isfinite(edges).all() or not np.all(np.diff(edges) > 0):
+            raise ValueError
+    except (TypeError, ValueError):
+        raise ValueError(f"Numeric bins for {column!r} must be finite, strictly increasing edges") from None
+    return edges
 
 
 def _analyze_numeric_drivers(
     from_data: pd.DataFrame,
     to_data: pd.DataFrame,
     numeric_cols: Dict[str, Union[List[float], int]],
-    absolute_delta: int,
+    net_change: int,
     top_n: int = 5,
     min_delta: int = 1,
 ) -> Dict:
-    """Analyze which numeric column bins drove the transition.
-
-    Args:
-        from_data: Raw data for the starting period
-        to_data: Raw data for the ending period
-        numeric_cols: Dict mapping column name to bin specification:
-            - List of floats: explicit bin edges [0, 1e6, 5e6, 10e6]
-            - Integer: number of quantile bins to compute
-        absolute_delta: Total count change for percent_of_change calculation
-        top_n: Number of top drivers to return per column
-        min_delta: Minimum count change to include
-
-    Returns:
-        Dict mapping column name to driver analysis results
-    """
+    """Count shared numeric bins and reconcile excluded values by period."""
     drivers_by_numeric = {}
-
-    for col_name, bin_spec in numeric_cols.items():
-        # skip if column not in data
-        if col_name not in from_data.columns and col_name not in to_data.columns:
-            continue
-
-        # combine data for consistent binning
-        combined_values = pd.concat([
-            from_data[col_name] if col_name in from_data.columns else pd.Series(dtype=float),
-            to_data[col_name] if col_name in to_data.columns else pd.Series(dtype=float),
-        ]).dropna()
-
-        if len(combined_values) == 0:
-            continue
-
-        # determine bin edges
-        if isinstance(bin_spec, int):
-            # quantile bins
-            n_bins = bin_spec
+    for column, spec in numeric_cols.items():
+        spec = _validated_bin_spec(column, spec)
+        values = []
+        for data in (from_data, to_data):
             try:
-                _, bin_edges = pd.qcut(combined_values, q=n_bins, retbins=True, duplicates="drop")
-            except ValueError:
-                # fallback if not enough unique values
-                bin_edges = np.linspace(combined_values.min(), combined_values.max(), n_bins + 1)
-        else:
-            # explicit bin edges
-            bin_edges = bin_spec
-
-        # create bin labels
-        bin_labels = []
-        for i in range(len(bin_edges) - 1):
-            low, high = bin_edges[i], bin_edges[i + 1]
-            if high >= 1e9:
-                bin_labels.append(f">= {_format_number(low)}")
-            elif low <= 0:
-                bin_labels.append(f"< {_format_number(high)}")
+                numeric = pd.to_numeric(data[column], errors="raise").astype(float)
+            except (ValueError, TypeError):
+                raise ValueError(f"Numeric column {column!r} contains non-numeric values") from None
+            values.append(numeric)
+        combined = pd.concat(values, ignore_index=True)
+        finite = combined[np.isfinite(combined)]
+        constant = False
+        if isinstance(spec, int):
+            if finite.empty:
+                edges = np.array([], dtype=float)
+            elif finite.nunique() == 1:
+                constant = True
+                edges = np.array([finite.iloc[0], finite.iloc[0]])
             else:
-                bin_labels.append(f"{_format_number(low)} - {_format_number(high)}")
-
-        # bin the data
-        def bin_column(df: pd.DataFrame, col: str) -> pd.Series:
-            if col not in df.columns:
-                return pd.Series(dtype=str)
-            binned = pd.cut(df[col], bins=bin_edges, labels=bin_labels, include_lowest=True)
-            return binned
-
-        from_binned = bin_column(from_data, col_name)
-        to_binned = bin_column(to_data, col_name)
-
-        # aggregate by bin (convert to string to avoid categorical merge issues)
-        from_counts = from_binned.astype(str).value_counts().reset_index()
-        from_counts.columns = ["bin", "count"]
-        to_counts = to_binned.astype(str).value_counts().reset_index()
-        to_counts.columns = ["bin", "count"]
-
-        # merge and calculate deltas
-        comparison = pd.merge(
-            from_counts, to_counts, on="bin", how="outer", suffixes=("_from", "_to")
-        ).fillna(0)
-
-        # filter out 'nan' bins from empty series
-        comparison = comparison[comparison["bin"] != "nan"]
-
-        comparison["delta"] = comparison["count_to"] - comparison["count_from"]
-        if absolute_delta > 0:
-            comparison["percent_of_change"] = comparison["delta"] / absolute_delta * 100
+                edges = np.unique(np.quantile(finite, np.linspace(0, 1, spec + 1)))
         else:
-            comparison["percent_of_change"] = 0.0
-
-        # filter and get top drivers
-        min_threshold = max(1, min_delta)
-        filtered = comparison[comparison["delta"] >= min_threshold]
-        top_drivers = filtered.nlargest(top_n, "delta").to_dict("records")
-
-        drivers_list = []
-        for driver in top_drivers:
-            drivers_list.append({
-                "bin": driver["bin"],
-                "count_from": int(driver["count_from"]),
-                "count_to": int(driver["count_to"]),
-                "delta": int(driver["delta"]),
-                "percent_of_change": round(driver["percent_of_change"], 1),
-            })
-
-        # calculate explanation power
-        if absolute_delta > 0:
-            top_explain_pct = sum(d["delta"] for d in drivers_list) / absolute_delta * 100
-        else:
-            top_explain_pct = 0.0
-
-        drivers_by_numeric[col_name] = {
-            "top_drivers": drivers_list,
-            "top_n_explain_pct": round(top_explain_pct, 1),
-            "bin_edges": [float(e) for e in bin_edges],
+            edges = spec
+        labels = [
+            f"{'[' if i == 0 else '('}{float(low)!r}, {float(high)!r}]"
+            for i, (low, high) in enumerate(zip(edges[:-1], edges[1:]))
+        ]
+        counts = []
+        coverage = {}
+        for direction, numeric in zip(("from", "to"), values):
+            missing = numeric.isna()
+            nonfinite = numeric.notna() & ~np.isfinite(numeric)
+            outside = np.isfinite(numeric) & ((numeric < edges[0]) | (numeric > edges[-1])) if len(edges) else pd.Series(False, index=numeric.index)
+            if constant:
+                bin_counts = [int(numeric.eq(edges[0]).sum())]
+            elif len(edges):
+                codes = pd.cut(numeric.where(np.isfinite(numeric)), bins=edges, labels=False, include_lowest=True)
+                bin_counts = [int(codes.eq(i).sum()) for i in range(len(labels))]
+            else:
+                bin_counts = []
+            counts.append(bin_counts)
+            coverage[direction] = {
+                "total": len(numeric), "included": sum(bin_counts),
+                "missing": int(missing.sum()), "nonfinite": int(nonfinite.sum()),
+                "outside_bins": int(outside.sum()),
+            }
+        comparison = pd.DataFrame({
+            "value": labels,
+            "count_from": counts[0], "count_to": counts[1],
+            "sort_key": list(range(len(labels))),
+        })
+        summary = _driver_summary(comparison, value_key="bin", net_change=net_change,
+                                  top_n=top_n, min_delta=min_delta)
+        summary["bin_edges"] = [float(edge) for edge in edges]
+        summary["period_count_from"] = len(from_data)
+        summary["period_count_to"] = len(to_data)
+        summary["coverage"] = coverage
+        summary["excluded_values"] = {
+            key: sum(coverage[d][key] for d in ("from", "to"))
+            for key in ("missing", "nonfinite", "outside_bins")
         }
-
+        summary["excluded_values"]["total"] = sum(summary["excluded_values"].values())
+        excluded_delta = (coverage["to"]["total"] - coverage["to"]["included"]
+                          - coverage["from"]["total"] + coverage["from"]["included"])
+        reconciliation = summary["reconciliation"]
+        reconciliation["excluded_delta"] = excluded_delta
+        reconciliation["matches_net_change"] = reconciliation["delta_sum"] + excluded_delta == net_change
+        reconciliation["unaccounted_delta"] = net_change - reconciliation["delta_sum"] - excluded_delta
+        drivers_by_numeric[column] = summary
     return drivers_by_numeric
-
-
-def _format_number(val: float) -> str:
-    """Format large numbers with K/M/B suffixes."""
-    if abs(val) >= 1e9:
-        return f"{val/1e9:.1f}B"
-    elif abs(val) >= 1e6:
-        return f"{val/1e6:.1f}M"
-    elif abs(val) >= 1e3:
-        return f"{val/1e3:.1f}K"
-    else:
-        return f"{val:.0f}"
 
 
 def display_transition_drivers(
@@ -838,21 +922,30 @@ def display_transition_drivers(
     for note in spike.get("notes", []):
         lines.append(f"  · {note}")
 
+    def format_pct(value: Optional[float]) -> str:
+        return "not defined" if value is None else f"{value:.1f}%"
+
     # subcategory drivers
     for subcat_col, drivers_data in subcats.items():
         top_drivers = drivers_data.get("top_drivers", [])
         explain_pct = drivers_data.get(
             "top_n_explain_pct", drivers_data.get("top_3_explain_pct", 0.0)
         )
-        if not top_drivers:
+        top_decreases = drivers_data.get("top_decreases", [])
+        if not top_drivers and not top_decreases:
             continue
 
-        lines.append(f"  Drivers by {subcat_col} (explain {explain_pct:.1f}% of change):")
+        lines.append(f"  Drivers by {subcat_col} (increases: {format_pct(explain_pct)} of net period change):")
         for d in top_drivers:
             lines.append(
                 f"    - {d['name']}: "
                 f"{d['count_from']:,} -> {d['count_to']:,} "
-                f"(Δ {d['delta']:+,}, {d['percent_of_change']:.1f}%, {d['driver_type']})"
+                f"(Δ {d['delta']:+,}, {format_pct(d['percent_of_change'])}, {d['driver_type']})"
+            )
+        for d in top_decreases:
+            lines.append(
+                f"    - decrease {d['name']}: {d['count_from']:,} -> {d['count_to']:,} "
+                f"(Δ {d['delta']:+,}, {format_pct(d['percent_of_change'])})"
             )
 
     # numeric drivers
@@ -860,15 +953,21 @@ def display_transition_drivers(
     for col_name, drivers_data in numerics.items():
         top_drivers = drivers_data.get("top_drivers", [])
         explain_pct = drivers_data.get("top_n_explain_pct", 0.0)
-        if not top_drivers:
+        top_decreases = drivers_data.get("top_decreases", [])
+        if not top_drivers and not top_decreases:
             continue
 
-        lines.append(f"  Drivers by {col_name} (explain {explain_pct:.1f}% of change):")
+        lines.append(f"  Drivers by {col_name} (increases: {format_pct(explain_pct)} of net period change):")
         for d in top_drivers:
             lines.append(
                 f"    - {d['bin']}: "
                 f"{d['count_from']:,} -> {d['count_to']:,} "
-                f"(Δ {d['delta']:+,}, {d['percent_of_change']:.1f}%)"
+                f"(Δ {d['delta']:+,}, {format_pct(d['percent_of_change'])})"
+            )
+        for d in top_decreases:
+            lines.append(
+                f"    - decrease {d['bin']}: {d['count_from']:,} -> {d['count_to']:,} "
+                f"(Δ {d['delta']:+,}, {format_pct(d['percent_of_change'])})"
             )
 
     lines.append("")  # trailing newline

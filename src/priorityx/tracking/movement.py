@@ -341,7 +341,12 @@ def track_movement(
 
     1. Global baseline: GLMM on full dataset → stable quadrant assignment
     2. Endpoint cohorting: Define valid entities based on endpoint criteria
-    3. Quarter-by-quarter tracking: Track X/Y movement for valid entities
+    3. Period-by-period tracking: Track X/Y movement for valid entities
+
+    The global baseline uses the full input, even when a schedule ends earlier.
+    Endpoint inactivity filtering uses approximately 91 days per configured
+    quarter for either cadence. Period fits with fewer than 100 cumulative rows
+    or fitting errors are skipped; deltas compare successive available rows.
 
     Args:
         df: Input pandas DataFrame
@@ -350,7 +355,7 @@ def track_movement(
         quarters: Period specification (see normalize_period_schedule)
         min_total_count: Minimum total count for inclusion (default: 20)
         decline_window_quarters: Max quarters after last observation (default: 6)
-        temporal_granularity: Time granularity for GLMM ('quarterly', 'yearly', 'semiannual')
+        temporal_granularity: Quarterly or monthly schedule/GLMM aggregation.
         vcp_p: Prior scale for random effects (default: 3.5)
         fe_p: Prior scale for fixed effects (default: 3.0)
         return_metadata: If True, returns (df, metadata) tuple. Default False returns just DataFrame.
@@ -737,7 +742,10 @@ def load_or_track_movement(
 
     When ``use_cache`` is True, tries to load the most recent
     ``movement-<entity_slug>-*.csv`` from ``output_dir``. If not
-    found, runs tracking and saves a fresh movement CSV.
+    found, runs tracking and saves a fresh movement CSV. The lookup does not
+    compare input data, column mapping, ranges or model parameters. Use a separate
+    output directory or use_cache=False after changing them. Loading a legacy
+    monthly CSV may rewrite its period header; in memory it remains quarter.
 
     Args:
         df_raw: Input DataFrame

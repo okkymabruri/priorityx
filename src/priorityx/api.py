@@ -4,7 +4,10 @@ This module exposes the most commonly used functions via a compact
 namespace so users can write:
 
     import priorityx as px
-    results, stats = px.fit_priority_matrix(...)
+    results = px.fit_priority_matrix(df, entity_col="service", timestamp_col="date")
+    results, stats = px.fit_priority_matrix(
+        df, entity_col="service", timestamp_col="date", return_stats=True
+    )
 
 without losing access to the more detailed submodules under
 ``priorityx.core``, ``priorityx.tracking``, or ``priorityx.viz``.

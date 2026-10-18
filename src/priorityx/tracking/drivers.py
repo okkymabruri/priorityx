@@ -1,4 +1,4 @@
-"""Transition driver analysis for identifying root causes of quadrant transitions."""
+"""Descriptive count breakdowns associated with saved quadrant transitions."""
 
 import pandas as pd
 import numpy as np
@@ -130,7 +130,13 @@ def _classify_transition_concern(from_q: str, to_q: str) -> bool:
 
 def _calculate_quarter_dates(quarter_str: str) -> Tuple[str, str]:
     """
-    Convert quarter string to start/end dates.
+    Return legacy driver raw-event windows for quarterly labels.
+
+    These are not calendar-quarter windows: Q1 maps to the preceding October
+    through January, Q2 to January through April, and Q3 to April through July.
+    The Q4 branch spans July through October of the next year (15 months).
+    Monthly labels are unsupported. Review these windows before interpreting
+    driver counts; movement and AutoViz period labels are not remapped here.
 
     Args:
         quarter_str: Quarter in format "YYYY-QN" (e.g., "2024-Q3")
@@ -213,12 +219,12 @@ def classify_priority(
 
     Examples:
         >>> classify_priority("Q3", "Q1", 0.5, 0.6, 0.5, 0.5, 100, 200)
-        (1, 'Critical: Extreme movement (ΔX=0.50, ΔY=0.50)', 'XY')
+        (1, 'Critical: Extreme movement (dX=0.50, dY=0.50)', 'XY')
     """
     is_borderline = abs(x) <= 0.1 or abs(y) <= 0.1
     to_critical = to_quadrant == "Q1"
 
-    # crisis triggers (0.4 = 2.74 SD, aligns with 3-sigma rule)
+    # Fixed operational heuristic; no distributional sigma equivalence is assumed.
     y_spike = abs(y_delta) > 0.4
     x_spike = abs(x_delta) > 0.4
     explosion = percent_change > 500 and count_delta > 50
@@ -280,16 +286,21 @@ def extract_transition_drivers(
     Extract key drivers of a quadrant transition.
 
     Analyzes what drove a specific entity to transition between quadrants,
-    including volume changes, growth changes, and contributing sub-categories.
+    including count changes, score changes, and associated sub-categories.
+    This is descriptive, not causal attribution. Raw-event windows have a known
+    legacy offset and a 15-month Q4 branch; reported weekly averages use a fixed
+    13-week divisor. See _calculate_quarter_dates before interpreting results.
 
     Args:
         movement_df: Output from track_movement(). Expected to
             contain the canonical period column ("quarter") whose labels
-            may be quarterly ("YYYY-QN") or monthly ("YYYY-MM").
+            must use quarterly labels ("YYYY-QN"). Monthly driver date
+            conversion is not supported by this implementation.
         df_raw: Raw event data (pandas DataFrame)
         entity_name: Entity to analyze
-        period_from: Starting period label (e.g., "2024-Q2" or "2024-03")
-        period_to: Ending period label (e.g., "2024-Q3" or "2024-04")
+        period_from: Saved quarterly label (e.g., "2024-Q2"); raw-event
+            windows use the legacy mapping documented in _calculate_quarter_dates.
+        period_to: Saved quarterly label (e.g., "2024-Q3").
         entity_col: Entity column name in df_raw
         timestamp_col: Timestamp column name in df_raw
         subcategory_cols: List of categorical columns to analyze as drivers

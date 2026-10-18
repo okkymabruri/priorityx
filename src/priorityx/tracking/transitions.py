@@ -109,11 +109,14 @@ def extract_transitions(
                               If False, includes all transitions including improvements
 
     Returns:
-        DataFrame with columns:
+        DataFrame with the columns below when events exist; an event-free
+        result can have no columns. Add the required empty schema before CSV
+        import into AutoViz.
         - entity: Entity name
         - transition_quarter: When transition occurred
         - from_quadrant: Previous period quadrant
-        - to_quadrant: New period quadrant (with * for within-quadrant)
+        - to_quadrant: New period quadrant (with *Y or *X for within-quadrant
+          positive deltas above 1.0; Y takes precedence)
         - risk_level: "critical", "high", "medium", "low", or "stable"
         - volume_change: X-axis delta
         - growth_change: Y-axis delta
@@ -261,8 +264,8 @@ def classify_priority(
         y: Current Y-axis position (growth rate)
         x_delta: Change in X-axis (volume change)
         y_delta: Change in Y-axis (growth rate change)
-        complaints_delta: Absolute change in complaints
-        percent_change: Percentage change in complaints
+        complaints_delta: Compatibility name for the event-count increase.
+        percent_change: Percentage change in cumulative event counts.
 
     Returns:
         Tuple of (priority, reason, spike_axis) where:
@@ -285,7 +288,7 @@ def classify_priority(
     # check if moving to Q1 (critical quadrant)
     to_critical = to_quadrant == "Q1"
 
-    # determine spike axis for Crisis level (0.40 ≈ 2.74σ, aligns with 3-sigma rule)
+    # Determine spike axis using the fixed operational absolute-delta heuristic.
     y_spike = abs(y_delta) > 0.40
     x_spike = abs(x_delta) > 0.40
     explosion = percent_change > 500 and complaints_delta > 50

@@ -5,12 +5,11 @@
 # disabled workflow, and Pages would resume serving a second, stale copy at
 # okkymabruri.github.io. Use `mkdocs build` for local preview.
 #
-# These docs ship from okky.dev, which pulls docs/ from this repo at each
-# release. Publish a release and the site picks it up; nothing here deploys.
+# Documentation sources live in docs/. This configuration builds local previews;
+# it does not deploy them. Set a canonical site_url only for a verified live route.
 
 site_name: PriorityX
 site_description: Generic entity prioritization and transition analysis using GLMM statistical models
-site_url: https://okkymabruri.github.io/priorityx
 repo_url: https://github.com/okkymabruri/priorityx
 repo_name: okkymabruri/priorityx
 

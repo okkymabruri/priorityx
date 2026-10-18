@@ -1,11 +1,17 @@
 # Changelog
 
-Only major releases (v0.x.0) are listed.
+Selected release notes are listed below. Current imports, defaults and
+limitations are documented in the [API reference](api-reference.md).
 
 ## Unreleased
 
 - Separate installation from the README and add a ready-to-open IT incidents
   AutoViz example using existing saved results, with a workspace screenshot.
+- Reconcile methodology, score/event rules, API examples, return values,
+  file formats, cache reuse and saved-result column guidance with current code.
+- Document the existing driver-analysis period-window limitation and remove
+  unsupported accuracy, lead-time and threshold-calibration claims. No analytical
+  behavior changes are included in this documentation update.
 
 ---
 

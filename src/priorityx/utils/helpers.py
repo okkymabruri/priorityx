@@ -253,7 +253,8 @@ def generate_output_path(
         extension: File extension (default: "csv")
 
     Returns:
-        Absolute path to the output file within ``output_dir``.
+        Path within ``output_dir``; relative when the supplied directory is
+        relative. Constructing the path also creates the directory.
     """
 
     granularity_suffix = {

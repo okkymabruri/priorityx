@@ -69,17 +69,19 @@ def plot_priority_matrix(
 
     Args:
         results_df: Results from fit_priority_matrix()
-                   Required columns: entity, Random_Intercept, Random_Slope, quadrant, count
+                   Required columns: entity, x_score, y_score, quadrant, count
+                   (x_col/y_col can map alternative score columns).
         entity_name: Name for entity type (e.g., "Service", "Component")
         title: Optional custom title
         figsize: Figure size (width, height)
-        top_n_labels: Number of entities to label per quadrant
+        top_n_labels: Up to this many top X and top Y candidates per quadrant;
+            their merged label set can contain up to twice this number.
         show_quadrant_labels: Show quadrant descriptions as background text
         bubble_col: Optional column for bubble sizing (e.g., "count")
         force_show_labels: List of entity names to always label
         force_hide_labels: List of entity names to never label
         skip_label_min_count: Skip labeling entities with count < threshold
-        plot_path: Path to save plot (accepts Path or str). If provided, saves plot.
+        plot_path: Path to save PNG content (accepts Path or str). Implies saving.
         csv_path: Path to save CSV (accepts Path or str). If provided, saves CSV.
         save_plot: [DEPRECATED] Use plot_path instead. Save plot to file.
         save_csv: [DEPRECATED] Use csv_path instead. Save data to CSV.

@@ -113,9 +113,12 @@ ResultBundle([dataset]).save("results.json")
 ```
 
 Here `period` and `event_period` already contain `YYYY-Qn` labels. If your saved
-result uses actual endpoint dates, convert that column deliberately, for example
+result uses dates **inside the represented period**, convert deliberately, for example
 `pd.to_datetime(movement["quarter"], errors="raise").dt.to_period("Q").astype(str).str.replace("Q", "-Q", regex=False)`.
 For Monthly use `.dt.to_period("M").astype(str)` and the `month` column.
+For an exclusive cutoff date, first identify the represented period: `2025-04-01`
+can mean the end of Q1, even though that date falls in Q2. Convert the represented
+period end, not the boundary blindly; keep the same interpretation across tables.
 Check that conversion has not collapsed two saved rows into one entity/period;
 the validator rejects duplicates. Do not aggregate or change scores to make an
 import pass. Reading an identifier as a string preserves `001`; converting an
@@ -125,6 +128,7 @@ For raw-event analysis, keep your own source headers and pass their names to
 the existing [analysis API](quickstart.md):
 
 ```python
+import pandas as pd
 import priorityx as px
 
 events = pd.read_csv("events.csv", dtype={"unit_id": str})
@@ -142,8 +146,10 @@ CSV roles are passed explicitly; filenames are never inferred. Identifiers are
 read as strings (so values such as `001` remain unchanged), while known numeric
 columns are validated for finite values and non-negative integer counts. Full
 movement history is retained. The JSON schema is versioned (`schema_version: 1`)
-and records table columns plus records, with no pickle, executable code or
-absolute paths.
+and records table columns plus records, without pickle or serialized Python
+objects. Recorded source filenames are basenames, not absolute paths.
+Caller-supplied metadata and extra table columns are retained, so review them
+before sharing a bundle or offline HTML; arbitrary metadata is not scrubbed.
 
 `entity_type` and the optional `type_label` are caller-defined; PriorityX does not
 reserve domain categories. This importer accepts PriorityX's generic result

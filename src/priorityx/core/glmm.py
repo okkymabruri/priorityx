@@ -1,4 +1,4 @@
-"""GLMM estimation for entity prioritization using Poisson and Gaussian mixed models."""
+"""Entity prioritization using Poisson, Gaussian and Gamma mixed models."""
 
 from typing import Dict, Literal, Optional, Tuple, Union, overload
 from datetime import timedelta
@@ -91,7 +91,7 @@ def _fit_single_glmm(
     """Fit a single GLMM and extract x_score/y_score from intercept/slope.
 
     This is the default mode: fits one GLMM on counts or a single metric,
-    then uses Random_Intercept for x_score and Random_Slope for y_score.
+    then maps the entity random intercept to x_score and random slope to y_score.
     """
     # create copy to avoid modifying original
     df = df.copy()
@@ -724,17 +724,23 @@ def fit_priority_matrix(
         x_effect: Which random effect to use for X score ("intercept" or "slope").
         y_effect: Which random effect to use for Y score ("intercept" or "slope").
         family: Distribution family for continuous metrics ("gaussian" or "gamma").
-            - "gaussian" (default): Works for any data, robust for ranking.
+            - "gaussian" (default): Gaussian response for aggregated metric means.
             - "gamma": Use for right-skewed positive data (durations, amounts).
             Note: Only applies when x_metric or y_metric is specified.
             Count-based axes always use Poisson.
 
-        count_col: Optional count column (default: row count per entity-period).
+        count_col: Optional summed count response for the single-model path.
+            Separate-model count axes currently use row counts without forwarding
+            this argument. Returned count and min_total_count use event rows.
         date_filter: Date filter (e.g., "< 2025-01-01", ">= 2024-01-01").
-        min_observations: Minimum time periods required per entity.
-        min_total_count: Minimum total count threshold to include entity.
-        decline_window_quarters: Filter entities inactive >N quarters.
-        temporal_granularity: Time aggregation level ("yearly", "quarterly", "semiannual", "monthly").
+        min_observations: Minimum observed entity-period rows; default 3 is
+            adjusted to 8 for quarterly and 4 for semiannual aggregation.
+        min_total_count: Minimum input event rows per entity (default 0),
+            including when count_col supplies a separate response.
+        decline_window_quarters: Quarterly-only inactivity filter using
+            approximately 91 days per configured quarter; default 6.
+        temporal_granularity: Time aggregation level ("yearly" by default,
+            or "quarterly", "semiannual", "monthly").
         vcp_p: Random effects prior scale.
         fe_p: Fixed effects prior scale.
         verbose: Print diagnostic logs.
@@ -746,8 +752,8 @@ def fit_priority_matrix(
 
         Results DataFrame columns:
         - entity: Entity identifier
-        - x_score: Normalized score for X axis
-        - y_score: Normalized score for Y axis
+        - x_score: Selected X random effect (count log-effect or metric z-score)
+        - y_score: Selected Y random effect (count log-effect or metric z-score)
         - count: Total event count per entity
         - quadrant: Classification (Q1-Q4)
 

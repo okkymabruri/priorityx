@@ -168,7 +168,9 @@ def add_priority_indices(
       SQI = w_resolution * z(-resolution) + w_recovery * z(recovery_ratio)
 
     - **EWI (Early Warning Index)**: Composite score for prioritization
-      EWI = w_risk * RI + w_quality * (-SQI)
+      EWI = w_risk * RI + w_quality * (-SQI) when both components exist and
+      the supplied weights sum to one. Each stage normalizes its weights over
+      available components; unavailable mappings are omitted.
 
     Parameters
     ----------
@@ -329,7 +331,7 @@ def sensitivity_analysis(
         If None, uses add_priority_indices.
     weight_variations : list[dict]
         List of weight configurations to test. Each dict contains weight params.
-        If None, uses default CRI weight variations.
+        If None, uses four built-in volume/growth/severity weight combinations.
     top_n : int
         Number of top entities to compare across variations.
     entity_col : str
@@ -340,7 +342,10 @@ def sensitivity_analysis(
     Returns
     -------
     pd.DataFrame
-        Summary showing rank stability across weight variations.
+        variation, string weights, and ordered top_entities. With multiple
+        usable variations, core_overlap counts membership shared by all top
+        groups and stable_overlap membership shared by at least half. These are
+        set-overlap counts, not rank correlations. Missing index outputs are skipped.
 
     Examples
     --------
@@ -357,7 +362,7 @@ def sensitivity_analysis(
         index_func = add_priority_indices
 
     if weight_variations is None:
-        # Default: vary CRI weights
+        # Default: vary volume/growth/severity weights
         weight_variations = [
             {"w_volume": 0.5, "w_growth": 0.3, "w_severity": 0.2},
             {"w_volume": 0.4, "w_growth": 0.4, "w_severity": 0.2},

@@ -69,3 +69,5 @@ uv run --no-sync python -m priorityx app --bundle examples/autoviz/incidents-qua
 ```
 
 The repository pins Python 3.12 as its default and supplies a dependency lockfile.
+This source setup includes development dependencies; normal app users can use
+the smaller PyPI installation above.

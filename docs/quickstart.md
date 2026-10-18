@@ -16,19 +16,26 @@ identity and period columns. This route does not fit models.
 
 ## Basic Usage
 
+This analysis example uses the repository's generated IT incidents CSV (download
+requires a connection). It covers 2023–2025 and fits models when you run it.
+For your own data, replace the URL and pass your actual identifier/date columns.
+
 ```python
 import pandas as pd
 import priorityx as px
 
-# load your raw events; keep identifiers lexical, including leading zeros
-df = pd.read_csv("your_data.csv", dtype={"service": str})
-df["date"] = pd.to_datetime(df["date"])
+# keep identifiers lexical, including leading zeros
+url = (
+    "https://raw.githubusercontent.com/okkymabruri/priorityx/main/"
+    "examples/incidents/incidents.csv"
+)
+df = pd.read_csv(url, dtype={"service": str}, parse_dates=["opened_at"])
 
 # fit priority matrix
 results = px.fit_priority_matrix(
     df,
     entity_col="service",      # your entity column
-    timestamp_col="date",      # your date column
+    timestamp_col="opened_at", # your date column
     temporal_granularity="quarterly",
     min_observations=8,
 )
@@ -46,8 +53,9 @@ import priorityx as px
 movement = px.track_movement(
     df,
     entity_col="service",
-    timestamp_col="date",
-    quarters=["2024-01-01", "2025-01-01"],
+    timestamp_col="opened_at",
+    quarters=["2023-01-01", "2026-01-01"],
+    temporal_granularity="quarterly",
 )
 
 # detect transitions
@@ -61,36 +69,59 @@ px.plot_transition_timeline(
 
 # plot trajectories (auto-select top 4 movers from last 6 quarters)
 px.plot_entity_trajectories(
-    movement,
+    movement.drop(columns=["last_active_quarter"], errors="ignore"),
     entity_name="service",
     highlight_top_n=4,
     highlight_by="trajectory_distance",
     recent_periods=6,
     plot_path="trajectories.png",
 )
-
-# analyze drivers for a specific transition
-analysis = px.extract_transition_drivers(
-    movement_df=movement,
-    df_raw=df,
-    entity_name="Service A",
-    period_from="2024-Q2",
-    period_to="2024-Q3",
-    entity_col="service",
-    timestamp_col="date",
-    subcategory_cols=["category", "region"],
-    numeric_cols={"amount": [0, 1e6, 5e6, 10e6]},  # breakdown by amount bins
-)
-px.display_transition_drivers(analysis, save_txt=True, txt_path="drivers.txt")
 ```
+
+Driver breakdowns are described in the [API reference](api-reference.md#extract_transition_drivers).
+Their current raw-event date windows have a [known limitation](api-reference.md#driver-period-window-limitation);
+review it before interpreting category counts. They do not fit a new model.
+
+## Save results for AutoViz
+
+Keep the complete analytical tables, before selecting chart subsets:
+
+```python
+from priorityx.results import ResultBundle, import_results_csv
+
+# Event-free extraction can return no headers; retain a valid empty schema.
+if transitions.empty:
+    transitions = transitions.reindex(columns=[
+        "entity", "transition_quarter", "from_quadrant", "to_quadrant", "risk_level"
+    ])
+
+dataset = import_results_csv(
+    entity_type="service", type_label="Services", cadence="quarterly",
+    source_id="it-incidents-example", coverage_start="2023-Q1", as_of="2025-Q4",
+    matrix=results, movement=movement, transitions=transitions,
+)
+ResultBundle([dataset]).save("results.json")
+```
+
+These dates match the explicit tracking range above; use your actual coverage
+and snapshot date. The matrix and movement calls must use the intended input
+coverage: a schedule alone does not filter the global baseline or matrix fit.
+Then open `python -m priorityx app --bundle results.json`.
 
 ## Data Requirements
 
 Your data needs:
 
-- Entity identifier column (e.g., service, component, department)
+- Entity identifier column (e.g., service, component, department); use consistent
+  string identifiers across tables for AutoViz
 - Timestamp column (Date or Datetime type)
-- Optional: Count metric column (defaults to row count)
+- Optional count-response column (summed per entity-period) or continuous metric
+  columns (averaged per entity-period)
+
+The default fitting cadence is Yearly. The examples above set Quarterly explicitly;
+its default effective observation minimum is eight observed periods. A short
+tracking range can still use a longer cumulative input history. Review
+[methodology](methodology.md) before changing thresholds to make a fit run.
 
 ## Output
 

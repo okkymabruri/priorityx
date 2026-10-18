@@ -31,7 +31,8 @@ It uses saved example results and includes all three chart families.
 Use **Open results → Open result bundle** for a version 1
 [result bundle](saved-results.md), or **Open results → Import CSV files** for
 explicitly assigned matrix, movement and transition roles. Import opens a dialog;
-closing it preserves the entered fields. Supply type, cadence, coverage and source metadata. CSV import validates
+closing it preserves the entered fields. Supply type, cadence, coverage and source
+metadata. CSV import validates
 required columns, duplicate headers, exact row widths and numeric values.
 Additional columns remain caller metadata; source-specific mapping happens in
 the caller's adapter. A failed import leaves the current workspace intact.
@@ -150,7 +151,7 @@ print(report.to_dict())
 ## Build boundary and qualification
 
 Application HTML/CSS/JavaScript, Plotly and its MIT license live inside the Python
-package. `build_html()` reads those assets directly; there is no Node runtime,
+package. `priorityx.app.build_html()` reads those assets directly; there is no Node runtime,
 CDN fetch or dependency on development prototypes. Build distributions with
 `uv build`; no additional Python runtime dependencies are required.
 

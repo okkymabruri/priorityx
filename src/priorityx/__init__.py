@@ -4,25 +4,36 @@ The :mod:`priorityx.api` module exposes a small convenience facade so
 users can write::
 
     import priorityx as px
-    results, stats = px.fit_priority_matrix(...)
+    results = px.fit_priority_matrix(df, entity_col="service", timestamp_col="date")
+    results, stats = px.fit_priority_matrix(
+        df, entity_col="service", timestamp_col="date", return_stats=True
+    )
 
 while more advanced workflows can continue to import from the
 ``core``, ``tracking`` and ``viz`` subpackages directly.
 
 ## current version API (consolidated)
 
-The unified API uses ``fit_priority_matrix()`` as THE single entry point:
+Use ``fit_priority_matrix()`` for count-based or custom-metric score axes:
 
     # Default: volume x growth
-    results, stats = px.fit_priority_matrix(df, entity_col="service", timestamp_col="date")
+    results = px.fit_priority_matrix(df, entity_col="service", timestamp_col="date")
 
     # Custom Y axis: volume x resolution_days
-    results, stats = px.fit_priority_matrix(df, ..., y_metric="resolution_days")
+    results = px.fit_priority_matrix(
+        df, entity_col="service", timestamp_col="date", y_metric="resolution_days"
+    )
 
     # Custom both axes: disputed x paid
-    results, stats = px.fit_priority_matrix(df, ..., x_metric="disputed", y_metric="paid")
+    results = px.fit_priority_matrix(
+        df, entity_col="service", timestamp_col="date",
+        x_metric="disputed", y_metric="paid", y_effect="intercept"
+    )
 
-Return columns: entity, x_score, y_score, count, quadrant
+Default return: a DataFrame with entity, x_score, y_score, count and quadrant.
+Pass return_stats=True for a (DataFrame, statistics dict) tuple.
+The fitting cadence defaults to yearly; set temporal_granularity explicitly
+when quarterly or monthly analysis is intended.
 """
 
 from .api import (  # noqa: F401

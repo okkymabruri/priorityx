@@ -1,5 +1,10 @@
 # API Reference
 
+The examples below assume your prepared event DataFrame is `df`. Fitting returns
+`results`; tracking returns `movement` (called `movement_df` in plot examples).
+See the [quickstart](quickstart.md) for a connected workflow and
+[AutoViz example](autoviz-example.md) for saved data you can open without fitting.
+
 ## Core Functions
 
 ### fit_priority_matrix
@@ -25,15 +30,16 @@ results, stats = px.fit_priority_matrix(
     return_stats=True,  # returns (DataFrame, dict) tuple
 )
 
-# Custom Y axis: volume × resolution_days (two GLMMs)
+# Custom Y axis: count level × resolution-duration trend (two GLMMs)
 results = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
     y_metric="resolution_days",
+    temporal_granularity="quarterly",
 )
 
-# Custom both axes with Gamma family for right-skewed data
+# Compare metric levels with Gamma models for strictly positive data
 results = px.fit_priority_matrix(
     df,
     entity_col="service",
@@ -41,6 +47,8 @@ results = px.fit_priority_matrix(
     x_metric="disputed_amount",
     y_metric="paid_amount",
     family="gamma",
+    y_effect="intercept",
+    temporal_granularity="quarterly",
 )
 ```
 
@@ -56,12 +64,12 @@ Unified entry point for GLMM-based entity prioritization. Supports count-based (
 - `x_effect`: Random effect for X score ("intercept" or "slope", default: "intercept")
 - `y_effect`: Random effect for Y score ("intercept" or "slope", default: "slope")
 - `family`: Distribution for continuous metrics ("gaussian" or "gamma", default: "gaussian")
-- `count_col`: Optional count column (default: row count per entity-period)
+- `count_col`: Optional column summed as the count response in the single-model count path; omitted means row counts. Returned `count` and `min_total_count` still use event rows. Different axis metrics trigger separate models, whose count axis currently uses row counts rather than forwarding `count_col`.
 - `date_filter`: Date filter string (e.g., "< 2025-01-01", ">= 2024-01-01")
-- `min_observations`: Minimum time periods required per entity
-- `min_total_count`: Minimum total count threshold
-- `decline_window_quarters`: Filter entities inactive >N quarters
-- `temporal_granularity`: "yearly", "quarterly", "semiannual", or "monthly"
+- `min_observations`: Minimum observed entity-period rows (argument default: 3). A value of 3 becomes 8 for Quarterly and 4 for Semiannual; Monthly/Yearly retain 3.
+- `min_total_count`: Minimum event rows per entity (default: 0)
+- `decline_window_quarters`: Quarterly-only inactivity window, approximately 91 days per quarter (default: 6; non-positive disables)
+- `temporal_granularity`: "yearly" (default), "quarterly", "semiannual", or "monthly"
 - `vcp_p`: Random effects prior scale (default: 3.5)
 - `fe_p`: Fixed effects prior scale (default: 3.0)
 - `return_stats`: If True, returns (DataFrame, dict) tuple (default: False)
@@ -73,10 +81,18 @@ Unified entry point for GLMM-based entity prioritization. Supports count-based (
 
 **Family Selection:**
 
-- `"gaussian"` (default): Works for any data, robust for entity ranking
-- `"gamma"`: Use for right-skewed positive data (durations, monetary amounts)
+- `"gaussian"` (default): Continuous metric means with a Gaussian response model
+- `"gamma"`: Continuous positive metric means with a Gamma/log-link response model; non-positive aggregated values are excluded
 
-> **Reproducibility:** set the environment variable `PRIORITYX_GLMM_SEED` or call `set_glmm_random_seed(value)` before invoking `fit_priority_matrix` to obtain deterministic variational Bayes estimates.
+Count-based axes always use Poisson. Metric-based random effects are
+z-standardized across fitted entities. Different metrics use separate fits;
+`x_effect` and `y_effect` still select the requested effects. See
+[methodology](methodology.md) for score interpretation and filtering limits.
+
+Set `PRIORITYX_GLMM_SEED` before starting Python, or call
+`px.set_glmm_random_seed(value)` before fitting, for repeatability in a fixed
+data/software environment. It does not promise identical estimates across versions
+or platforms. `return_stats=True` reports the estimator method actually used.
 
 ---
 
@@ -95,10 +111,19 @@ metrics = px.aggregate_entity_metrics(
     primary_col="exposure",
     secondary_col="recovery",
 )
-# Returns: entity, mean_duration, total_primary, total_secondary, secondary_to_primary_ratio
+# Identity column remains "service"; optional metric columns depend on inputs.
 ```
 
 Computes per-entity aggregated metrics for enrichment.
+`mean_duration` uses whole non-negative days between the supplied timestamps;
+the magnitude columns are summed. The ratio is missing when the primary total
+is not positive. Merge on the actual identity column before calculating indices:
+
+```python
+enriched_input = results.merge(
+    metrics.rename(columns={"service": "entity"}), on="entity", how="left"
+)
+```
 
 ### add_priority_indices
 
@@ -106,7 +131,7 @@ Computes per-entity aggregated metrics for enrichment.
 import priorityx as px
 
 enriched = px.add_priority_indices(
-    results,
+    enriched_input,
     volume_col="count",
     growth_col="y_score",
     severity_col="total_primary",
@@ -125,9 +150,15 @@ Adds composite risk indices to enriched entity data.
 
 - `z_volume`, `z_growth`, `z_severity`: Z-scored risk components
 - `z_neg_resolution`, `z_recovery`: Z-scored quality components
-- `RI`: Risk Index = weighted sum of z_volume, z_growth, z_severity
-- `SQI`: Service Quality Index = weighted sum of z_neg_resolution, z_recovery
-- `EWI`: Early Warning Index = w_risk × RI + w_quality × (-SQI)
+- `RI`: Weighted combination of available risk components
+- `SQI`: Weighted combination of available quality components; higher is better
+- `EWI`: Weighted combination of RI and negative SQI; higher is higher priority
+
+Weights are normalized over available components at each stage. With all mapped
+columns present and the default weights shown, EWI is `0.7 * RI - 0.3 * SQI`.
+Unavailable columns are omitted, and a stage with no components is not created.
+Constant components have zero z-scores. These indices are relative scores,
+not calibrated probabilities.
 
 **Usage:**
 ```python
@@ -138,21 +169,38 @@ top_risks = enriched.nlargest(10, "EWI")
 ### sensitivity_analysis
 
 ```python
-import priorityx as px
+from priorityx.metrics import sensitivity_analysis
 
-results = px.sensitivity_analysis(
-    df,
+stability = sensitivity_analysis(
+    results,  # fitted matrix with entity, count and y_score
     index_col="EWI",
     entity_col="entity",
-    weight_ranges={
-        "w_risk": [0.6, 0.7, 0.8],
-        "w_quality": [0.2, 0.3, 0.4],
-    },
-    top_n=10,
+    weight_variations=[
+        {"w_volume": 0.6, "w_growth": 0.4},
+        {"w_volume": 0.4, "w_growth": 0.6},
+    ],
+    top_n=5,
 )
 ```
 
 Tests ranking stability across weight variations.
+Import from `priorityx.metrics` (also available from `priorityx.api`); it is not
+re-exported as `px.sensitivity_analysis` at the package root.
+
+- `index_func`: Callable accepting the input table and weight keywords, returning
+  a table with `entity_col` / `index_col`; defaults to `add_priority_indices`.
+- `weight_variations`: Explicit `list[dict]` of weight keyword arguments. When
+  omitted, four built-in volume/growth/severity combinations are used.
+- `top_n`: Size of each top group (default 10); `entity_col` defaults to `entity`
+  and `index_col` to `EWI`.
+- Output: `variation`, string `weights` and ordered `top_entities`. Multiple
+  usable variations also include `core_overlap` (membership in every top group)
+  and `stable_overlap` (membership in at least half). These are set-overlap
+  counts, not a rank-correlation statistic. Variations missing the index column
+  are skipped; no usable variations gives an empty DataFrame.
+
+When testing quality or severity weights, provide the corresponding source
+columns and an `index_func` that maps them into `add_priority_indices`.
 
 ---
 
@@ -193,7 +241,7 @@ Tracks entity movement through priority quadrants over time.
 - `timestamp_col`: Date column name
 - `quarters`: Period specification (None = auto-detect)
 - `min_total_count`: Minimum total count for inclusion (default: 20)
-- `decline_window_quarters`: Max quarters after last observation (default: 6)
+- `decline_window_quarters`: Endpoint inactivity window of approximately 91 days per quarter (default: 6), including for Monthly tracking
 - `temporal_granularity`: "quarterly" or "monthly"
 - `vcp_p`: Random effects prior scale (default: 3.5)
 - `fe_p`: Fixed effects prior scale (default: 3.0)
@@ -201,8 +249,17 @@ Tracks entity movement through priority quadrants over time.
 
 **Returns:**
 
-- Default (`return_metadata=False`): DataFrame with quarterly X/Y positions
+- Default (`return_metadata=False`): DataFrame with cumulative X/Y positions and the canonical `quarter` column for both cadences (`YYYY-Qn` or `YYYY-MM`)
 - With `return_metadata=True`: Tuple of (DataFrame, metadata dict)
+
+`quarters` can be `None`, a two-date range with exclusive end boundary, or a
+list of `(period_label, exclusive_cutoff_date)` tuples. Quarterly ranges require
+quarter starts; Monthly ranges require month starts. For example, Monthly
+`quarters=["2025-01-01", "2026-01-01"]` covers January–December 2025.
+The global baseline uses the full supplied input; filter input separately when
+later observations must be excluded. Period fits below 100 cumulative rows or
+with fitting errors are skipped. Deltas then compare successive available rows.
+Metadata retains `quarter_schedule` / `quarters_analyzed` names for both cadences.
 
 ### load_or_track_movement
 
@@ -235,6 +292,10 @@ movement, csv_path = px.load_or_track_movement(
 
 Caches movement tracking results to disk. On subsequent runs, loads from
 cache if available (`use_cache=True` by default).
+The lookup uses entity slug and cadence, not input hashes or parameter equality.
+Use a separate directory or `use_cache=False` after changing source data, range,
+column mapping or fitting requirements. This helper writes results on a cache
+miss and can rewrite legacy Monthly headers; see [output naming](output_naming.md).
 
 **Parameters:**
 
@@ -248,6 +309,10 @@ cache if available (`use_cache=True` by default).
 - `output_dir`: Cache directory (default: "results/csv")
 - `use_cache`: Load from cache if available (default: True)
 - `return_path`: If True, returns (DataFrame, csv_path) tuple (default: False)
+
+The wrapper uses tracking's default priors/inactivity window; it does not expose
+`vcp_p`, `fe_p` or `decline_window_quarters` overrides. Use `track_movement()`
+directly when you need those settings.
 
 **Returns:**
 
@@ -270,6 +335,13 @@ Extracts quadrant transitions from movement data.
 **Returns:**
 
 - DataFrame with transition details and risk levels
+
+The canonical input period column is `quarter` for Monthly too; a result loaded
+directly from a Monthly `month` CSV must be renamed before using this analysis
+function. Output uses `transition_quarter` in both cadences. An event-free result
+can be an empty DataFrame without columns; give it the required empty schema before
+AutoViz import. Extraction thresholds differ from display-class thresholds;
+see [priority classification](priority_classification.md).
 
 ### extract_transition_drivers
 
@@ -305,34 +377,59 @@ analysis = px.extract_transition_drivers(
 )
 ```
 
-Analyzes root causes of a quadrant transition.
+Summarizes associated count changes across supplied categories and numeric bins.
+These descriptive breakdowns do not identify causal effects.
 
 **Parameters:**
 
 - `movement_df`: Output from track_movement()
 - `df_raw`: Raw event data (pandas DataFrame)
 - `entity_name`: Entity to analyze
-- `period_from`: Starting period (e.g., "2024-Q2", "2024-01")
-- `period_to`: Ending period (e.g., "2024-Q3", "2024-02")
+- `period_from`: Saved Quarterly movement label (e.g., "2024-Q2"); see the window limitation below
+- `period_to`: Saved Quarterly movement label (e.g., "2024-Q3"); Monthly labels are not supported by the current driver date conversion
 - `entity_col`: Entity column name
 - `timestamp_col`: Timestamp column name
 - `subcategory_cols`: Optional list of categorical columns for breakdown (auto-detected when omitted)
 - `numeric_cols`: Optional dict of numeric columns with bin specs:
   - List of floats: explicit bin edges (e.g., `[0, 1e6, 5e6, 10e6]`)
   - Integer: number of quantile bins (e.g., `4` for quartiles)
-- `top_n`: Limit of drivers per column (default: 3)
-- `min_delta`: Minimum count delta for inclusion (default: 1)
+- `top_n`: Limit of drivers per column (default: 5)
+- `min_delta`: Minimum count delta for inclusion (default: 2)
 
 **Returns:**
 
 - Dictionary with:
   - `transition`: includes risk-level change and `is_concerning` flag
-  - `magnitude`: cumulative deltas plus period-specific weekly averages and complaint counts
+  - `magnitude`: cumulative deltas plus raw-window event counts and weekly averages using a fixed 13-week divisor
   - `spike_drivers`: summary notes aligned with spike indicators (`*X`, `*Y`, `*XY`)
   - `subcategory_drivers`: per-column driver lists for categorical columns
   - `numeric_drivers`: per-column driver lists for numeric columns (with bin edges)
   - `priority`: priority tier, trigger reason, spike axis
   - `meta`: diagnostic flags (e.g., whether subcategory columns were auto-detected)
+
+Categorical/numeric driver keys are present when their analyses run. A requested
+subcategory list with no existing columns falls back to auto-detection; inspect
+`meta["subcategory_columns_used"]` and `meta["subcategory_columns_auto_detected"]`.
+Numeric bins describe within-bin event counts, not the sum of the metric.
+
+#### Driver period-window limitation
+
+The current raw-event windows differ from the calendar meaning of the saved
+movement labels. For example, the implementation maps:
+
+| Saved movement label | Raw-event window, inclusive start / exclusive end |
+|---|---|
+| `2024-Q1` | 2023-10-01 to 2024-01-01 |
+| `2024-Q2` | 2024-01-01 to 2024-04-01 |
+| `2024-Q3` | 2024-04-01 to 2024-07-01 |
+| `2024-Q4` | 2024-07-01 to 2025-10-01 |
+
+The Q4 window spans 15 months, while the reported weekly averages still divide
+by 13. Monthly labels raise `ValueError` in this conversion. Do not interpret
+these raw-event breakdowns as calendar-quarter/month comparisons. Verify windows
+or calculate those breakdowns in your own adapter before relying on them. This
+limitation does not change saved movement scores or AutoViz layouts; correcting
+the driver calculation is separate from documentation and requires its own review.
 
 ### classify_priority
 
@@ -349,7 +446,10 @@ priority, reason, spike_axis = classify_priority(
 )
 ```
 
-Classifies supervisory priority (1=Critical, 2=Investigate, 3=Monitor, 4=Low).
+Classifies driver-analysis priority (1=Critical, 2=Investigate, 3=Monitor, 4=Low).
+The timeline uses the separate `tracking.transitions` helper, whose numeric class
+1 is labeled Crisis. [Classification rules](priority_classification.md) explain
+the strict comparisons, suffixes and distinction from saved `risk_level`.
 
 **Returns:**
 
@@ -388,6 +488,8 @@ fig = px.plot_priority_matrix(
 ```
 
 Creates scatter plot of priority matrix.
+`results_df` uses `entity`, `x_score`, `y_score`, `count` and `quadrant` (or
+explicit `x_col` / `y_col` mappings), rather than legacy random-effect names.
 
 **Path Parameters:**
 
@@ -410,6 +512,8 @@ fig = px.plot_transition_timeline(
 )
 
 # Save with simplified path API
+PLOT_DIR = Path("results/plot")
+CSV_DIR = Path("results/csv")
 fig = px.plot_transition_timeline(
     transitions_df,
     entity_name="issue",
@@ -426,6 +530,9 @@ Creates a timeline of transitions. Passing `movement_df` computes the
 Crisis/Investigate/Monitor/Low event classes and spike markers (`*X`, `*Y`,
 `*XY`). Without movement data, the existing default is Investigate. These
 algorithmic classes are not verified distress.
+Keep full movement history in original chronological order for class calculation.
+`filter_risk_levels` filters saved `risk_level`, not computed event class.
+The original plotting API does not impose AutoViz's YTD display window.
 
 `entity_name` is a caller-provided display label. It is used unchanged for the
 entity axis and generated title; PriorityX does not infer a domain from its text.
@@ -504,14 +611,16 @@ from pathlib import Path
 
 # Basic usage (no save)
 fig = px.plot_entity_trajectories(
-    movement_df,
+    movement_df.drop(columns=["last_active_quarter"], errors="ignore"),
     entity_name="Entity",
     max_entities=10,
 )
 
-# Auto-select top movers with simplified path API (recommended)
+# Auto-select top movers with explicit paths
+PLOT_DIR = Path("results/plot")
+CSV_DIR = Path("results/csv")
 fig = px.plot_entity_trajectories(
-    movement_df,
+    movement_df.drop(columns=["last_active_quarter"], errors="ignore"),
     entity_name="Entity",
     highlight_top_n=4,                   # auto-select top 4 entities
     highlight_by="trajectory_distance",  # by path length (or "total_movement")
@@ -524,12 +633,21 @@ fig = px.plot_entity_trajectories(
 
 Creates trajectory plot showing entity paths through priority space.
 The generated title uses the caller's `entity_name` unchanged.
+This original helper selects up to ten entities by default; AutoViz's separate
+default is three ranked trend-change paths. Its optional CSV contains only the
+selected/retained plot rows; save full movement separately. With `period_count`,
+the helper trims each path after its last positive-count period.
+For an older saved table that already contains `last_active_quarter`, pass a
+copy without that derived column, as above. The original plot helper otherwise
+collides with its own merge of that name and raises `KeyError`. Keep the full
+saved table unchanged; this compatibility workaround applies only to the
+original Matplotlib trajectory helper, not AutoViz import.
 
 **Parameters:**
 
 - `movement_df`: Output from track_movement()
 - `entity_name`: Caller-provided label for the entity type
-- `max_entities`: Maximum entities to show (default: 10)
+- `max_entities`: Maximum entities to auto-select (default: 10); an explicit nonempty `highlight_entities` list takes precedence without truncation
 - `highlight_entities`: List of specific entities to highlight
 - `highlight_top_n`: Auto-select top N entities by movement (overrides max_entities)
 - `highlight_by`: Selection method when using highlight_top_n:
@@ -540,6 +658,11 @@ The generated title uses the caller's `entity_name` unchanged.
 - `plot_path`: Path to save plot (accepts Path or str). If provided, saves plot.
 - `csv_path`: Path to save CSV (accepts Path or str). If provided, saves CSV.
 - `close_fig`: Close figure after rendering (set True for Jupyter to avoid duplicates)
+
+Timeline and trajectory helpers return `None` for empty selected inputs. Matrix
+and nonempty timeline/trajectory calls return a Matplotlib figure. Original
+`plot_path` writes PNG content; use `fig.savefig()` or the AutoViz print renderer
+for SVG. See [saving and naming](output_naming.md) for path precedence and formats.
 
 ---
 

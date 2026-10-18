@@ -1,63 +1,91 @@
-# Priority Classification Overview
+# Quadrants, transition risks and event classes
 
-A four-tier priority system ranks quadrant transitions by urgency using movement velocity, magnitude, and spike detection. Priorities are computed inside `plot_transition_timeline(..., movement_df=...)` and saved in transition CSVs.
+PriorityX exposes three related concepts. Keep them separate when interpreting
+charts or filtering saved results:
 
-## Priority Tiers
+| Concept | Produced by | Values |
+|---|---|---|
+| Score quadrant | Fitting / movement tracking | Q1–Q4, from score signs |
+| Saved transition risk | `extract_transitions()` | `critical`, `high`, `medium`, `low`, `stable` |
+| Displayed event class | Timeline / AutoViz preparation using movement | 1 Crisis, 2 Investigate, 3 Monitor, 4 Low |
 
-| Priority | Label & Color | Main Triggers | Recommended Action |
-|----------|---------------|---------------|--------------------|
-| **1 – Crisis** 🔴 | Explosion requiring immediate response | ΔX ≥ 0.40 or ΔY ≥ 0.40; volume jump ≥ 50 with ≥500% growth; both axes spiking (`*XY`) | Launch crisis playbook, staff war room, monitor daily |
-| **2 – Investigate** 🟠 | Rapid escalation needing urgent review | `|ΔX|` > 0.15 or `|ΔY|` > 0.15; entry into Q1 with strong position; ≥100% growth with ≥5 new complaints | Trigger early warning, assign analysts, tighten monitoring cadence |
-| **3 – Monitor** 🟡 | Borderline movement worth watching | Position within ±0.10 of quadrant boundary; gentle Q1 entry | Track trend, document findings, review quarterly |
-| **4 – Low** 🟢 | Stable or improving | No conditions above met | Maintain routine oversight |
+A red Q1 point in a matrix and a red Crisis event use separate rules. Quadrants
+are score positions, not calendar quarters, ranks or verified current status.
+See [methodology](methodology.md) for score scales and inclusion filters.
 
-## Spike Indicators
+## Saved transition risks
 
-| Marker | Meaning | Threshold |
-|--------|---------|-----------|
-| `*Y` | Growth spike | ΔY ≥ 0.40 |
-| `*X` | Volume spike | ΔX ≥ 0.40 |
-| `*XY` | Simultaneous spikes | ΔX ≥ 0.40 **and** ΔY ≥ 0.40 |
+For cross-quadrant changes, extraction uses these mappings:
 
-## Threshold Calibration
+| Transition | Saved `risk_level` |
+|---|---|
+| Q2/Q3/Q4 → Q1 | `critical` |
+| Q3/Q4 → Q2 | `high` |
+| Q4 → Q3 | `medium` |
+| Q1 → Q2, Q1 → Q4, Q2 → Q3 | `low` |
+| Other cross-quadrant changes | `stable` |
 
-These thresholds are **empirical calibrations** derived from regulatory monitoring of financial complaints, not statistical cutoffs from a known distribution.
+The default `focus_risk_increasing=True` removes cross-quadrant `low` and `stable`
+rows. Pass `False` to retain them. When the quadrant is unchanged, extraction
+checks a positive `y_delta > 1.0` first (`*Y`, `critical`), then positive
+`x_delta > 1.0` (`*X`, `high`). If both exceed 1.0, that extraction branch records
+`*Y` because Y has precedence. It does not generate every possible display spike.
 
-### Why These Values?
+Filter saved risks with their actual column:
 
-| Threshold | Value | Calibration Rationale |
-|-----------|-------|----------------------|
-| Crisis spike | ±0.40 | Flags ~top 1% of period-over-period movements in a financial-services complaints dataset (2021-2024) |
-| Velocity trigger | ±0.15 | Captures sustained acceleration above median movement |
-| Borderline band | ±0.10 | Buffer zone around quadrant boundaries |
+```python
+critical_transitions = transitions[transitions["risk_level"] == "critical"]
+```
 
-### Important Caveats
+These rows are not necessarily the same as Crisis events after display preparation.
 
-1. **Scale depends on data**: GLMM random effects are on log-scale (Poisson) or original scale (Gaussian). The absolute values depend on your data's variance structure.
+## Displayed event classes
 
-2. **Domain calibration recommended**: These thresholds were tuned for financial complaints. For other domains (IT incidents, bugs), validate with your historical data:
-   ```python
-   # check your data's movement distribution
-   movements = movement_df.groupby('entity')[['x_delta', 'y_delta']].agg(['mean', 'std', 'max'])
-   print(movements.describe())
-   ```
+When full movement history and cumulative counts are available, the renderer
+compares an event's score position/count with its preceding saved movement row.
+The first matching rule wins:
 
-3. **Not statistical cutoffs**: Unlike z-scores where 2σ = 95th percentile, these are operational thresholds. Adjust based on your false-positive tolerance.
+| Class | Rule |
+|---|---|
+| **1 Crisis** | `abs(delta_x) > 0.40` or `abs(delta_y) > 0.40`, or count growth `> 500%` with a count increase `> 50` |
+| **2 Investigate** | Either absolute score delta `> 0.15`; otherwise a destination exactly `Q1` with both coordinates outside the boundary band; otherwise growth `> 100%` with count increase `>= 5` |
+| **3 Monitor** | Either coordinate has absolute value `<= 0.10`, or the destination is exactly `Q1`, after the earlier rules fail |
+| **4 Low** | No earlier rule matches |
 
-### Threshold Reference
+The comparisons are strict where shown: exactly 0.40 is not a Crisis score
+trigger. Extreme negative score moves also satisfy the absolute-delta rule.
+Counts are changes in cumulative event rows, not a percentage change in the
+single-period count; a zero preceding cumulative count gives a zero percentage.
+A saved destination suffix is passed through, so `Q1*Y` is not the exact `Q1`
+string used by the destination-specific branches.
 
-| Metric | Cut-off | Notes |
-|--------|---------|-------|
-| Crisis spike | ±0.40 | Empirical: flags extreme moves in calibration data |
-| Velocity trigger | ±0.15 | Empirical: sustained acceleration |
-| Growth shock | ≥100% **and** ≥5 complaints | Filters out noise from tiny bases |
-| Explosion | ≥500% **and** ≥50 complaints | High-volume surges escalated to Crisis |
-| Borderline band | ±0.10 | Buffer zone around quadrant boundaries |
+The display falls back to Investigate when the matching current row, preceding
+history or cumulative counts are unavailable. Preserve history and its original
+chronological row order before display filtering; do not send a YTD-only movement
+extract for class calculation. Plotting does not add a `priority` column to the
+caller's transitions. AutoViz's prepared events expose the class separately.
 
-## Usage Guidelines
+## Spike suffixes
 
-1. **Always supply movement data**: `plot_transition_timeline(transitions, movement_df=movement)` is required for priority scoring; omitting it defaults to Priority 2.
-2. **Filter by priority**: e.g. `transitions[transitions["priority"] == 1]` to summarize crises; risk_level is retained for backward compatibility only.
-3. **Inspect spike markers**: `*X`, `*Y`, `*XY` signal urgent within-quadrant acceleration that may precede cross-quadrant jumps.
-4. **Adjust tracking range deliberately**: longer histories surface more transitions; short windows emphasize recent moves.
+During display classification, the absolute score-spike tests above give `*X`,
+`*Y` or `*XY`. A count-only Crisis uses the compatibility `*Y` marker. If a saved
+`to_quadrant` already contains a suffix, the display preserves it rather than
+replacing it. Therefore suffixes can originate from extraction or rendering;
+the extraction and display thresholds are not interchangeable.
 
+In compact notation, `3→②*XY` reads source Q3 → destination Q2, with both-axis
+spike indication. Marker date/coordinates remain at the event. Color identifies
+the displayed event class independently of the destination digit.
+
+## Threshold interpretation
+
+These are fixed operational heuristics in the implementation. The repository does
+not establish a percentile, sigma equivalence, calibrated detection accuracy or
+universal response action for them. Count-model log effects and standardized
+continuous-metric effects use different scales. Review historical performance
+and false-positive tolerance for your own data and workflow.
+
+The display classifier is `priorityx.tracking.transitions.classify_priority`.
+The driver-analysis helper `priorityx.tracking.drivers.classify_priority` uses
+`Critical` for numeric class 1 and a `count_delta` argument; timeline displays use
+`Crisis`. These labels are algorithmic classifications, not outcome verification.

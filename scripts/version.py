@@ -72,7 +72,7 @@ def git_commit_and_tag(version):
     print("Committed version changes")
 
     # create tag
-    subprocess.run(["git", "tag", tag], check=True)
+    subprocess.run(["git", "tag", "-m", f"Release {tag}", tag], check=True)
     print(f"Created tag {tag}")
 
     # push

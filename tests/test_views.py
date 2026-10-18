@@ -136,6 +136,15 @@ def test_static_export_uses_shared_saved_values_and_manual_size(family):
     if family == "timeline":
         assert [t.get_text() for t in figure.axes[0].get_xticklabels()] == prepared["datasets"][0]["periods"]
         assert "2→" in [t.get_text() for t in figure.axes[0].texts]
+    else:
+        # A ready report must not hide a label crossing a visible trajectory/axis.
+        from matplotlib.text import Text
+        renderer = figure.canvas.get_renderer()
+        ax = figure.axes[0]
+        assert report.unresolved == 0
+        for text in ax.texts:
+            assert not any(line.get_transform().transform_path(line.get_path()).intersects_bbox(
+                Text.get_window_extent(text, renderer), filled=False) for line in ax.lines)
     figure.clear()
 
 

@@ -21,17 +21,24 @@ _COLORS = {1: "#d62728", 2: "#ff7f0e", 3: "#ffdd57", 4: "#2ca02c"}
 _QUADRANT_COLORS = {"Q1": "#d62728", "Q2": "#ff7f0e", "Q3": "#2ca02c", "Q4": "#1f77b4"}
 
 
+def _line_paths(ax):
+    return [line.get_transform().transform_path(line.get_path())
+            for line in ax.lines if line.get_visible() and line.get_linestyle() != "None"]
+
+
 def _issues(fig, ax, labels, points):
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
     bounds = ax.get_window_extent(renderer)
     boxes = [Text.get_window_extent(t, renderer).expanded(1.02, 1.08) for t in labels]
+    paths = _line_paths(ax)
     unresolved = 0
     for i, box in enumerate(boxes):
         clipped = box.x0 < bounds.x0 or box.x1 > bounds.x1 or box.y0 < bounds.y0 or box.y1 > bounds.y1
         overlaps = any(box.overlaps(b) for b in boxes[:i])
         marker_overlap = any(box.overlaps(b) for b in points)
-        if clipped or overlaps or marker_overlap:
+        line_overlap = any(path.intersects_bbox(box, filled=False) for path in paths)
+        if clipped or overlaps or marker_overlap or line_overlap:
             unresolved += 1
     figure_bounds = fig.bbox
     tick_groups = []
@@ -69,6 +76,7 @@ def _point_labels(fig, ax, labels):
     points = [Bbox.from_bounds(x - radius, y - radius, radius * 2, radius * 2)
               for collection in ax.collections for point in collection.get_offsets()
               for x, y in [ax.transData.transform(point)]]
+    paths = _line_paths(ax)
     accepted = []
     for i, label in enumerate(labels):
         candidates = [(offset, ha, va) for radius in (9, 18, 36, 64)
@@ -85,7 +93,8 @@ def _point_labels(fig, ax, labels):
             fig.canvas.draw()
             box = Text.get_window_extent(label, renderer).expanded(1.02, 1.08)
             if (box.x0 >= bounds.x0 and box.x1 <= bounds.x1 and box.y0 >= bounds.y0
-                    and box.y1 <= bounds.y1 and not any(box.overlaps(b) for b in accepted + points)):
+                    and box.y1 <= bounds.y1 and not any(box.overlaps(b) for b in accepted + points)
+                    and not any(path.intersects_bbox(box, filled=False) for path in paths)):
                 break
         accepted.append(Text.get_window_extent(label, renderer).expanded(1.02, 1.08))
     return _issues(fig, ax, labels, points)

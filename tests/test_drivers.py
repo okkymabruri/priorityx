@@ -1,6 +1,8 @@
 """Tests for transition driver analysis."""
 
 import pandas as pd
+import numpy as np
+import pytest
 
 from priorityx.tracking.drivers import (
     classify_priority,
@@ -9,15 +11,15 @@ from priorityx.tracking.drivers import (
 )
 
 
-def test_calculate_quarter_dates():
-    """Test quarter date calculation."""
-    start, end = _calculate_quarter_dates("2024-Q3")
-    assert start == "2024-04-01"
-    assert end == "2024-07-01"
-
-    start, end = _calculate_quarter_dates("2025-Q1")
-    assert start == "2024-10-01"
-    assert end == "2025-01-01"
+@pytest.mark.parametrize("quarter,start,end", [
+    ("2024-Q1", "2024-01-01", "2024-04-01"),
+    ("2024-Q2", "2024-04-01", "2024-07-01"),
+    ("2024-Q3", "2024-07-01", "2024-10-01"),
+    ("2024-Q4", "2024-10-01", "2025-01-01"),
+])
+def test_calculate_quarter_dates(quarter, start, end):
+    """Calendar windows include leap years and Q4 rollover."""
+    assert _calculate_quarter_dates(quarter) == (start, end)
 
 
 def test_classify_priority_critical():
@@ -152,12 +154,12 @@ def test_extract_transition_drivers_manual_subcategory_controls():
             ],
             "date": pd.to_datetime(
                 [
-                    "2024-01-15",
-                    "2024-02-20",
-                    "2024-04-10",
                     "2024-04-15",
-                    "2024-05-01",
-                    "2024-05-10",
+                    "2024-05-20",
+                    "2024-07-10",
+                    "2024-07-15",
+                    "2024-08-01",
+                    "2024-08-10",
                 ]
             ),
             "issue_type": [
@@ -267,8 +269,8 @@ def test_extract_transition_drivers_numeric_cols():
         {
             "product": ["Product X"] * (n_from + n_to),
             "date": (
-                list(pd.date_range("2024-01-15", periods=n_from, freq="D"))
-                + list(pd.date_range("2024-04-10", periods=n_to, freq="D"))
+                list(pd.date_range("2024-04-15", periods=n_from, freq="D"))
+                + list(pd.date_range("2024-07-10", periods=n_to, freq="D"))
             ),
             "amount": (
                 list(np.random.uniform(0, 1e6, n_from))  # mostly low amounts in Q2
@@ -346,8 +348,8 @@ def test_extract_transition_drivers_numeric_quantile_bins():
         {
             "service": ["Service Y"] * (n_from + n_to),
             "date": (
-                list(pd.date_range("2024-01-15", periods=n_from, freq="D"))
-                + list(pd.date_range("2024-04-10", periods=n_to, freq="D"))
+                list(pd.date_range("2024-04-15", periods=n_from, freq="D"))
+                + list(pd.date_range("2024-07-10", periods=n_to, freq="D"))
             ),
             "resolution_days": (
                 list(np.random.uniform(1, 10, n_from))

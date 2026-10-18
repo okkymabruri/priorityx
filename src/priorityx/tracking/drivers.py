@@ -130,13 +130,11 @@ def _classify_transition_concern(from_q: str, to_q: str) -> bool:
 
 def _calculate_quarter_dates(quarter_str: str) -> Tuple[str, str]:
     """
-    Return legacy driver raw-event windows for quarterly labels.
+    Return the calendar-quarter raw-event window for a saved quarterly label.
 
-    These are not calendar-quarter windows: Q1 maps to the preceding October
-    through January, Q2 to January through April, and Q3 to April through July.
-    The Q4 branch spans July through October of the next year (15 months).
-    Monthly labels are unsupported. Review these windows before interpreting
-    driver counts; movement and AutoViz period labels are not remapped here.
+    The start is inclusive and the end is exclusive. Monthly labels remain
+    unsupported by this driver helper; movement and AutoViz period labels are
+    not remapped here.
 
     Args:
         quarter_str: Quarter in format "YYYY-QN" (e.g., "2024-Q3")
@@ -146,9 +144,9 @@ def _calculate_quarter_dates(quarter_str: str) -> Tuple[str, str]:
 
     Examples:
         >>> _calculate_quarter_dates("2024-Q3")
-        ('2024-04-01', '2024-07-01')
+        ('2024-07-01', '2024-10-01')
     """
-    match = re.match(r"(\d{4})-Q(\d)", quarter_str)
+    match = re.fullmatch(r"(\d{4})-Q([1-4])", quarter_str) if isinstance(quarter_str, str) else None
     if not match:
         raise ValueError(
             f"Invalid quarter format: {quarter_str}. Use 'YYYY-QN' (e.g., '2024-Q3')"
@@ -157,27 +155,11 @@ def _calculate_quarter_dates(quarter_str: str) -> Tuple[str, str]:
     year = int(match.group(1))
     quarter = int(match.group(2))
 
-    # quarter start dates
-    quarter_starts = {
-        1: (year - 1, 10, 1),  # Q1 starts Oct 1 of prev year
-        2: (year, 1, 1),  # Q2 starts Jan 1
-        3: (year, 4, 1),  # Q3 starts Apr 1
-        4: (year, 7, 1),  # Q4 starts Jul 1
-    }
-
-    if quarter not in quarter_starts:
+    if quarter not in {1, 2, 3, 4}:
         raise ValueError(f"Quarter must be 1-4, got: {quarter}")
 
-    y, m, d = quarter_starts[quarter]
-    start_date = datetime(y, m, d)
-
-    # calculate next quarter start (exact end date)
-    next_quarter = quarter + 1 if quarter < 4 else 1
-    next_year = year if quarter < 4 else year + 1
-    ey, em, ed = quarter_starts[next_quarter]
-    if next_quarter == 1:
-        ey = next_year
-    end_date = datetime(ey, em, ed)
+    start_date = datetime(year, (quarter - 1) * 3 + 1, 1)
+    end_date = datetime(year + (quarter == 4), (quarter % 4) * 3 + 1, 1)
 
     return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
 
@@ -287,9 +269,9 @@ def extract_transition_drivers(
 
     Analyzes what drove a specific entity to transition between quadrants,
     including count changes, score changes, and associated sub-categories.
-    This is descriptive, not causal attribution. Raw-event windows have a known
-    legacy offset and a 15-month Q4 branch; reported weekly averages use a fixed
-    13-week divisor. See _calculate_quarter_dates before interpreting results.
+    This is descriptive, not causal attribution. Raw-event windows use matching
+    calendar quarters; reported weekly averages use a fixed 13-week divisor.
+    See _calculate_quarter_dates before interpreting results.
 
     Args:
         movement_df: Output from track_movement(). Expected to
@@ -299,7 +281,7 @@ def extract_transition_drivers(
         df_raw: Raw event data (pandas DataFrame)
         entity_name: Entity to analyze
         period_from: Saved quarterly label (e.g., "2024-Q2"); raw-event
-            windows use the legacy mapping documented in _calculate_quarter_dates.
+            windows use the calendar mapping documented in _calculate_quarter_dates.
         period_to: Saved quarterly label (e.g., "2024-Q3").
         entity_col: Entity column name in df_raw
         timestamp_col: Timestamp column name in df_raw

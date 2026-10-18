@@ -79,8 +79,7 @@ px.plot_entity_trajectories(
 ```
 
 Driver breakdowns are described in the [API reference](api-reference.md#extract_transition_drivers).
-Their current raw-event date windows have a [known limitation](api-reference.md#driver-period-window-limitation);
-review it before interpreting category counts. They do not fit a new model.
+They use matching calendar-quarter raw-event windows and do not fit a new model.
 
 ## Save results for AutoViz
 

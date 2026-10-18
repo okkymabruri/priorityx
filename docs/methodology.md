@@ -109,8 +109,9 @@ as `quarter_schedule` are retained for Monthly too.
 `extract_transitions()` selects events from movement history. Its saved
 `risk_level`, within-quadrant extraction thresholds and rendering-time event
 classes are distinct; [priority classification](priority_classification.md)
-describes their precedence and limits. Driver breakdowns have a separate
-[period-window limitation](api-reference.md#driver-period-window-limitation).
+describes their precedence and limits. Driver breakdowns compare
+[calendar-quarter raw-event windows](api-reference.md#driver-period-windows)
+and describe event-count changes rather than causes of model-score changes.
 
 AutoViz and its opt-in static renderer read saved results and share display
 semantics. Changing layout, selection or a YTD window does not run these models.

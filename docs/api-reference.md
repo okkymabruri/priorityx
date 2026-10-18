@@ -412,24 +412,21 @@ subcategory list with no existing columns falls back to auto-detection; inspect
 `meta["subcategory_columns_used"]` and `meta["subcategory_columns_auto_detected"]`.
 Numeric bins describe within-bin event counts, not the sum of the metric.
 
-#### Driver period-window limitation
+#### Driver period windows
 
-The current raw-event windows differ from the calendar meaning of the saved
-movement labels. For example, the implementation maps:
+The raw-event windows match the calendar meaning of the saved movement labels:
 
 | Saved movement label | Raw-event window, inclusive start / exclusive end |
 |---|---|
-| `2024-Q1` | 2023-10-01 to 2024-01-01 |
-| `2024-Q2` | 2024-01-01 to 2024-04-01 |
-| `2024-Q3` | 2024-04-01 to 2024-07-01 |
-| `2024-Q4` | 2024-07-01 to 2025-10-01 |
+| `2024-Q1` | 2024-01-01 to 2024-04-01 |
+| `2024-Q2` | 2024-04-01 to 2024-07-01 |
+| `2024-Q3` | 2024-07-01 to 2024-10-01 |
+| `2024-Q4` | 2024-10-01 to 2025-01-01 |
 
-The Q4 window spans 15 months, while the reported weekly averages still divide
-by 13. Monthly labels raise `ValueError` in this conversion. Do not interpret
-these raw-event breakdowns as calendar-quarter/month comparisons. Verify windows
-or calculate those breakdowns in your own adapter before relying on them. This
-limitation does not change saved movement scores or AutoViz layouts; correcting
-the driver calculation is separate from documentation and requires its own review.
+The reported weekly averages still divide by 13. Monthly labels raise
+`ValueError` in this conversion. Driver breakdowns remain descriptive event
+counts, not causal explanations of score changes; they do not change saved
+movement scores or AutoViz layouts.
 
 ### classify_priority
 

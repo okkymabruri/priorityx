@@ -7,7 +7,7 @@ authors = [
 ]
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 keywords = ["prioritization", "risk-analysis", "glmm", "escalation-detection", "statistical-modeling"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -15,9 +15,9 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
@@ -27,6 +27,10 @@ dependencies = [
     "pandas>=2.3.3",
     "statsmodels>=0.14.5",
 ]
+
+[project.scripts]
+priorityx = "priorityx.app:main"
+
 [project.urls]
 Homepage = "https://github.com/okkymabruri/priorityx"
 Repository = "https://github.com/okkymabruri/priorityx"

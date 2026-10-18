@@ -4,6 +4,39 @@ Only major releases (v0.x.0) are listed.
 
 ---
 
+## v0.7.0 (2026-10-18)
+
+- Add an axis-free tile-and-point logo beside the intact PriorityX name and
+  retain its embedded tab icon in self-contained HTML exports.
+- Add validated, portable saved-result bundles and explicit CSV import with
+  schema, duplicate-field and numeric-value validation.
+- Add a loopback-only saved-results workspace with packaged Plotly.js charts:
+  linked quadrant matrix, YTD transition timeline and recent trajectories.
+  Quarterly opens when available; type labels remain caller-defined.
+- Fit browser timeline labels automatically and provide equal chart panels,
+  exact data tables, linked selection, zoom/reset and portable view settings.
+- Add self-contained interactive HTML and bounded Matplotlib PNG/SVG exports
+  over shared saved-result/view contracts. Display controls do not fit models or
+  change saved analytical values; existing Matplotlib defaults remain available.
+- Preserve caller-provided entity display labels without domain inference.
+- Require Python 3.12 or later; support for Python 3.10 and 3.11 is removed.
+- Default source-checkout development to Python 3.12 and configure CI for
+  Python 3.12, 3.13 and 3.14 on Linux, macOS and Windows.
+- Check installed-wheel app launch, spawned exports and disconnected HTML
+  reopening in CI; require the quality matrix before release builds.
+- Start the numeric loopback workspace without reverse-DNS resolution, avoiding
+  launch stalls when the host resolver is unavailable.
+- Refresh and include the lockfile when preparing a version bump so locked
+  installation checks remain valid before tagging.
+- Record the installed package version as the producer of newly created bundles;
+  retain the recorded producer when reopening older results.
+- Keep static trajectory endpoint labels clear of visible paths and axes, and
+  include remaining line crossings in layout reports.
+- Document exact saved-result columns, identity/date mapping, leading-zero IDs,
+  local launch on macOS/Windows and the analysis-to-AutoViz data boundary.
+
+---
+
 ## v0.6.0 (2026-01)
 
 **Simplified Visualization Path API**

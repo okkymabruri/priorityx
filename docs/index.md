@@ -5,14 +5,23 @@
 [![PyPI version](https://badge.fury.io/py/priorityx.svg)](https://badge.fury.io/py/priorityx)
 [![Downloads](https://static.pepy.tech/badge/priorityx)](https://pepy.tech/project/priorityx)
 [![Tests](https://github.com/okkymabruri/priorityx/workflows/Tests/badge.svg)](https://github.com/okkymabruri/priorityx/actions)
-[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Installation
 
+Requires Python 3.12 or later.
+
 ```bash
-pip install priorityx
+python -m pip install priorityx
 ```
+
+## AutoViz
+
+Run `python -m priorityx app` to open the local workspace, or add
+`--bundle results.json` for a saved bundle. See the [AutoViz guide](app.md) for
+launching, controls and exports, and [saved-result columns](saved-results.md#required-columns)
+for the identifier/date schema and mapping from your own headers.
 
 ## Quick Start
 
@@ -23,7 +32,7 @@ import priorityx as px
 df = pd.read_csv("data.csv")
 
 # Default: volume x growth (single GLMM)
-results, stats = px.fit_priority_matrix(
+results = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
@@ -38,7 +47,7 @@ px.plot_priority_matrix(results, entity_name="Service", save_plot=True)
 
 ```python
 # Custom Y axis: volume × resolution_days (two GLMMs)
-results, _ = px.fit_priority_matrix(
+results = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
@@ -46,7 +55,7 @@ results, _ = px.fit_priority_matrix(
 )
 
 # Custom both axes: disputed_amount × paid_amount
-results, _ = px.fit_priority_matrix(
+results = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
@@ -93,7 +102,7 @@ top_risks = results.nlargest(10, "EWI")
 
 ## Use Cases
 
-- Consumer complaint prioritization (financial services, regulatory)
+- Entity prioritization for operational and research workflows
 - IT incident triage
 - Software bug prioritization
 - Compliance violation monitoring
@@ -103,4 +112,5 @@ top_risks = results.nlargest(10, "EWI")
 
 - [Quick Start Guide](quickstart.md) — Full walkthrough
 - [API Reference](api-reference.md) — Function signatures and parameters
+- [Saved Results](saved-results.md) — Portable result bundles and explicit CSV imports
 - [Methodology](methodology.md) — Statistical background

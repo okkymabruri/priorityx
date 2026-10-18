@@ -2,7 +2,7 @@
 
 This note documents where PriorityX writes plots/CSVs and how filenames
 are constructed. It is meant as a quick reference when wiring outputs
-into EWS pipelines or BI tools.
+into downstream pipelines or BI tools.
 
 ---
 
@@ -46,11 +46,11 @@ Where:
   - `Y` for yearly
   - `S` for semiannual
 
-Example (topics, quarterly):
+Example (generic entity, quarterly):
 
 ```text
-results/plot/priority_matrix-topic-Q-20251126.png
-results/csv/priority_matrix-topic-Q-20251126.csv
+results/plot/priority_matrix-entity-Q-20251126.png
+results/csv/priority_matrix-entity-Q-20251126.csv
 ```
 
 ---
@@ -73,11 +73,11 @@ Function: `priorityx.viz.timeline.plot_transition_timeline`
   transition_timeline-<entity_name_slug>-<granularity_suffix>-<YYYYMMDD>.csv
   ```
 
-Example (FSPs, quarterly):
+Example (generic entity, quarterly):
 
 ```text
-results/plot/transition_timeline-fsp-Q-20251126.png
-results/csv/transition_timeline-fsp-Q-20251126.csv
+results/plot/transition_timeline-entity-Q-20251126.png
+results/csv/transition_timeline-entity-Q-20251126.csv
 ```
 
 ---
@@ -98,11 +98,11 @@ Function: `priorityx.viz.trajectory.plot_entity_trajectories`
   `priorityx.utils.helpers.save_dataframe_to_csv` with artifact name
   `"trajectories"` (see next section).
 
-Example (topics, quarterly):
+Example (generic entity, quarterly):
 
 ```text
-results/plot/trajectories-topic-Q-20251126.png
-results/csv/trajectories-topic-Q-20251126.csv   # only when save_csv=True
+results/plot/trajectories-entity-Q-20251126.png
+results/csv/trajectories-entity-Q-20251126.csv   # only when save_csv=True
 ```
 
 ---
@@ -128,14 +128,15 @@ Where:
 Examples:
 
 ```text
-results/csv/movement-topic-Q-20251126.csv
-results/csv/trajectories-fsp-Q-20251126.csv
+results/csv/movement-entity-Q-20251126.csv
+results/csv/trajectories-entity-Q-20251126.csv
 ```
 
-### EWS canonical CSV outputs
+### Downstream pipeline outputs
 
-For the complaints Early Warning System (EWS) pipelines, the canonical
-CSV artifacts per run are:
+Downstream applications may define their own canonical artifact set. PriorityX
+does not infer or reserve source-specific filenames; pass explicit paths when a
+caller needs a particular naming convention. The generic result roles are:
 
 ```text
 movement-*.csv
@@ -143,25 +144,23 @@ priority_matrix-*.csv
 transitions-*.csv
 ```
 
-Trajectory CSVs (`trajectories-*.csv`) are optional and are typically
-only written for selected custom views (for example, a focus list of
-FSPs or products) by explicitly passing `save_csv=True` to
-`plot_entity_trajectories`.
+Trajectory CSVs (`trajectories-*.csv`) are optional and are written only when a
+caller passes `save_csv=True` to `plot_entity_trajectories`.
 
 ---
 
 ## Overriding locations
 
-All plotting and helper functions accept directories as keyword
-arguments (`plot_dir`, `csv_dir`, `output_dir`). To write outputs into a
-custom EWS workspace, pass explicit paths, for example:
+All plotting and helper functions accept directories as keyword arguments
+(`plot_dir`, `csv_dir`, `output_dir`). A caller can pass explicit paths for its
+own workspace, for example:
 
 ```python
 plot_priority_matrix(
     results_df,
-    entity_name="Topic",
-    plot_dir="ews/results/plot",
-    csv_dir="ews/results/csv",
+    entity_name="Entity",
+    plot_dir="workspace/results/plot",
+    csv_dir="workspace/results/csv",
 )
 ```
 

@@ -3,6 +3,7 @@ import json
 import pandas as pd
 import pytest
 
+from priorityx import __version__
 from priorityx.results import (
     ResultBundle,
     ResultDataset,
@@ -72,6 +73,7 @@ def test_bundle_roundtrip_preserves_empty_schema_and_string_ids(tmp_path, cadenc
         transitions=transitions,
     )
     b = ResultBundle([d])
+    assert b.producer_version == __version__
     path = tmp_path / "bundle.json"
     b.save(path)
     loaded = ResultBundle.load(path)
@@ -79,6 +81,10 @@ def test_bundle_roundtrip_preserves_empty_schema_and_string_ids(tmp_path, cadenc
     assert loaded.datasets[0].type_label == "Work units"
     assert loaded.datasets[0].matrix.iloc[0]["entity"] == "001"
     assert loaded.datasets[0].movement.equals(movement)
+    assert loaded.producer_version == __version__
+    # Opening older results retains their actual producer, not this install's version.
+    historical = {**loaded.to_dict(), "producer_version": "0.5.0"}
+    assert ResultBundle.from_dict(historical).producer_version == "0.5.0"
     empty_dataset = ResultDataset(
         "empty", "monthly", "s", "2025-01", "2025-12", movement=empty
     )

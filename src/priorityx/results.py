@@ -19,6 +19,8 @@ from typing import Any, Mapping
 
 import pandas as pd
 
+from . import __version__
+
 SCHEMA_VERSION = 1
 _PERIOD = {
     "monthly": re.compile(r"^\d{4}-(0[1-9]|1[0-2])$"),
@@ -412,7 +414,7 @@ class ResultBundle:
     """A deterministic, JSON-serialisable collection of result datasets."""
 
     datasets: list[ResultDataset] = field(default_factory=list)
-    producer_version: str = "0.6.3"
+    producer_version: str = __version__
     schema_version: int = SCHEMA_VERSION
 
     def __post_init__(self) -> None:

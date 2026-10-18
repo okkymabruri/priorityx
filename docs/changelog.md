@@ -3,15 +3,29 @@
 Selected release notes are listed below. Current imports, defaults and
 limitations are documented in the [API reference](api-reference.md).
 
-## Unreleased
+## v0.7.1 (2026-10-18)
+
+- Correct driver raw-event windows to matching calendar quarters, including
+  the Q4 year rollover. Newly calculated driver counts can differ from v0.7.0.
+- Respect `count_col` on count axes in separate-model fitting; returned row
+  counts and eligibility thresholds are unchanged.
+- Accept saved `last_active_quarter` metadata in the original trajectory helper
+  without a merge collision or caller-data mutation.
+- Provide an explicit release-tag annotation while preserving configured signing
+  and the existing push confirmation.
+- Use net raw-period changes for driver contributions, add decreases and coverage
+  diagnostics, and report undefined percentages for zero net change. Validate
+  duplicate movement rows, explicit columns and numeric bins.
+- Preserve saved results; no model refit or migration is performed by viewing.
+
+### Documentation follow-up
 
 - Separate installation from the README and add a ready-to-open IT incidents
   AutoViz example using existing saved results, with a workspace screenshot.
 - Reconcile methodology, score/event rules, API examples, return values,
   file formats, cache reuse and saved-result column guidance with current code.
-- Document the existing driver-analysis period-window limitation and remove
-  unsupported accuracy, lead-time and threshold-calibration claims. No analytical
-  behavior changes are included in this documentation update.
+- Remove unsupported accuracy, lead-time and threshold-calibration claims; the
+  subsequent v0.7.1 changes above correct the documented driver limitations.
 
 ---
 

@@ -566,8 +566,9 @@ def _fit_dual_glmm(
     entity_col: str,
     timestamp_col: str,
     *,
-    x_metric: str,
-    y_metric: str,
+    x_metric: Optional[str],
+    y_metric: Optional[str],
+    count_col: Optional[str] = None,
     x_effect: Literal["intercept", "slope"] = "intercept",
     y_effect: Literal["intercept", "slope"] = "intercept",
     family: Literal["gaussian", "gamma"] = "gaussian",
@@ -593,7 +594,7 @@ def _fit_dual_glmm(
         entity_col=entity_col,
         timestamp_col=timestamp_col,
         metric_col=None if x_is_count else x_metric,
-        count_col=None,
+        count_col=count_col if x_is_count else None,
         x_effect=x_effect,
         y_effect=x_effect,  # same effect for both since we only use x_score
         family=family,
@@ -614,7 +615,7 @@ def _fit_dual_glmm(
         entity_col=entity_col,
         timestamp_col=timestamp_col,
         metric_col=None if y_is_count else y_metric,
-        count_col=None,
+        count_col=count_col if y_is_count else None,
         x_effect=y_effect,  # use y_effect for both since we only use x_score
         y_effect=y_effect,
         family=family,
@@ -729,9 +730,9 @@ def fit_priority_matrix(
             Note: Only applies when x_metric or y_metric is specified.
             Count-based axes always use Poisson.
 
-        count_col: Optional summed count response for the single-model path.
-            Separate-model count axes currently use row counts without forwarding
-            this argument. Returned count and min_total_count use event rows.
+        count_col: Optional summed count response for each count-model axis.
+            Separate-model count axes use this column when supplied. Returned
+            count and min_total_count use event rows.
         date_filter: Date filter (e.g., "< 2025-01-01", ">= 2024-01-01").
         min_observations: Minimum observed entity-period rows; default 3 is
             adjusted to 8 for quarterly and 4 for semiannual aggregation.
@@ -818,6 +819,7 @@ def fit_priority_matrix(
             timestamp_col=timestamp_col,
             x_metric=x_metric,
             y_metric=y_metric,
+            count_col=count_col,
             x_effect=x_effect,
             y_effect=y_effect,
             family=family,

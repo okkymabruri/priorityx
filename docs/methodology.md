@@ -10,10 +10,9 @@ causation, verified distress or a universal ordering of operational urgency.
 ## Models and aggregation
 
 For the default count-based analysis, events are aggregated by entity and period.
-Without `count_col`, the response is the number of rows. The single-model count
-path sums `count_col` within each entity-period when provided. With different
-axis metrics, the separate-model count axis currently uses row counts and does
-not forward `count_col`. Custom `x_metric` / `y_metric`
+Without `count_col`, the response is the number of rows. The single-model and
+separate-model count paths sum `count_col` within each entity-period when
+provided. Custom `x_metric` / `y_metric`
 columns are averaged within each entity-period and fitted with Gaussian or Gamma
 models. Gamma uses a log link and excludes non-positive aggregated metric values.
 

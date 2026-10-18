@@ -64,7 +64,7 @@ Unified entry point for GLMM-based entity prioritization. Supports count-based (
 - `x_effect`: Random effect for X score ("intercept" or "slope", default: "intercept")
 - `y_effect`: Random effect for Y score ("intercept" or "slope", default: "slope")
 - `family`: Distribution for continuous metrics ("gaussian" or "gamma", default: "gaussian")
-- `count_col`: Optional column summed as the count response in the single-model count path; omitted means row counts. Returned `count` and `min_total_count` still use event rows. Different axis metrics trigger separate models, whose count axis currently uses row counts rather than forwarding `count_col`.
+- `count_col`: Optional column summed as the count response in count-model axes; omitted means row counts. Returned `count` and `min_total_count` still use event rows. Different axis metrics trigger separate models, and a count axis respects this column.
 - `date_filter`: Date filter string (e.g., "< 2025-01-01", ">= 2024-01-01")
 - `min_observations`: Minimum observed entity-period rows (argument default: 3). A value of 3 becomes 8 for Quarterly and 4 for Semiannual; Monthly/Yearly retain 3.
 - `min_total_count`: Minimum event rows per entity (default: 0)

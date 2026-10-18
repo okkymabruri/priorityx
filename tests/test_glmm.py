@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import numpy as np
 import priorityx as px
+import pytest
 
 
 def generate_test_data(n_entities=5, n_quarters=12):
@@ -255,3 +256,30 @@ def test_dual_metric_axes():
     assert stats["y_metric"] == "metric_y"
     assert "x_score" in results.columns
     assert "y_score" in results.columns
+
+
+@pytest.mark.parametrize("count_axis", ["x", "y"])
+@pytest.mark.parametrize("count_col", [None, "event_count"])
+def test_dual_count_axis_respects_count_response(count_axis, count_col, monkeypatch):
+    """Public separate-axis results agree with the matching single-model fits."""
+    import priorityx.core.glmm as glmm
+
+    df = generate_test_data()
+    entity_index = df["entity"].map({name: i + 1 for i, name in enumerate(sorted(df["entity"].unique()))})
+    df["event_count"] = entity_index * (df["date"].dt.quarter + 1)
+    df["metric"] = entity_index + df["date"].dt.quarter / 10
+    original = df.copy(deep=True)
+    monkeypatch.setattr(glmm, "_GLMM_RANDOM_SEED", 1234)
+    common = dict(entity_col="entity", timestamp_col="date", temporal_granularity="quarterly",
+                  min_observations=6, x_effect="intercept", y_effect="intercept")
+    count_result = px.fit_priority_matrix(df, count_col=count_col, **common).set_index("entity")
+    metric_result = px.fit_priority_matrix(df, x_metric="metric", y_metric="metric", **common).set_index("entity")
+    result = px.fit_priority_matrix(
+        df, x_metric=None if count_axis == "x" else "metric",
+        y_metric="metric" if count_axis == "x" else None, count_col=count_col, **common,
+    ).set_index("entity")
+    metric_axis = "y" if count_axis == "x" else "x"
+    np.testing.assert_allclose(result[f"{count_axis}_score"], count_result.loc[result.index, "x_score"], atol=1e-10)
+    np.testing.assert_allclose(result[f"{metric_axis}_score"], metric_result.loc[result.index, "x_score"], atol=1e-10)
+    pd.testing.assert_series_equal(result["count"], count_result.loc[result.index, "count"])
+    pd.testing.assert_frame_equal(df, original)

@@ -13,8 +13,15 @@
 Requires Python 3.12 or later.
 
 ```bash
-pip install priorityx
+python -m pip install priorityx
 ```
+
+## AutoViz
+
+Run `python -m priorityx app` to open the local workspace, or add
+`--bundle results.json` for a saved bundle. See the [AutoViz guide](app.md) for
+launching, controls and exports, and [saved-result columns](saved-results.md#required-columns)
+for the identifier/date schema and mapping from your own headers.
 
 ## Quick Start
 
@@ -25,7 +32,7 @@ import priorityx as px
 df = pd.read_csv("data.csv")
 
 # Default: volume x growth (single GLMM)
-results, stats = px.fit_priority_matrix(
+results = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
@@ -40,7 +47,7 @@ px.plot_priority_matrix(results, entity_name="Service", save_plot=True)
 
 ```python
 # Custom Y axis: volume × resolution_days (two GLMMs)
-results, _ = px.fit_priority_matrix(
+results = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",
@@ -48,7 +55,7 @@ results, _ = px.fit_priority_matrix(
 )
 
 # Custom both axes: disputed_amount × paid_amount
-results, _ = px.fit_priority_matrix(
+results = px.fit_priority_matrix(
     df,
     entity_col="service",
     timestamp_col="date",

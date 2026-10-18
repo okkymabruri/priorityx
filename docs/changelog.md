@@ -4,9 +4,9 @@ Only major releases (v0.x.0) are listed.
 
 ---
 
-## Unreleased — v0.7.0
+## v0.7.0 (2026-10-18)
 
-- Add a monochrome coordinate-field logo beside the intact PriorityX name and
+- Add an axis-free tile-and-point logo beside the intact PriorityX name and
   retain its embedded tab icon in self-contained HTML exports.
 - Add validated, portable saved-result bundles and explicit CSV import with
   schema, duplicate-field and numeric-value validation.
@@ -28,6 +28,12 @@ Only major releases (v0.x.0) are listed.
   launch stalls when the host resolver is unavailable.
 - Refresh and include the lockfile when preparing a version bump so locked
   installation checks remain valid before tagging.
+- Record the installed package version as the producer of newly created bundles;
+  retain the recorded producer when reopening older results.
+- Keep static trajectory endpoint labels clear of visible paths and axes, and
+  include remaining line crossings in layout reports.
+- Document exact saved-result columns, identity/date mapping, leading-zero IDs,
+  local launch on macOS/Windows and the analysis-to-AutoViz data boundary.
 
 ---
 

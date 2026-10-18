@@ -12,9 +12,23 @@ Entity prioritization and escalation detection using GLMM statistical models
 
 Requires Python 3.12 or later.
 
-```bash
-pip install priorityx
+On macOS/Linux:
+
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install priorityx
 ```
+
+On Windows PowerShell:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install priorityx
+.\.venv\Scripts\python.exe -m priorityx app
+```
+
+The Windows command uses the environment directly; activation is optional.
 
 ## AutoViz: interactive saved-results workspace
 
@@ -79,6 +93,17 @@ types and cadences by including more datasets in `ResultBundle([...])`.
 See the [workspace guide](docs/app.md) for controls, layout, state and exports,
 and the [saved-result contract](docs/saved-results.md) for import validation and
 trajectory selection.
+
+**Which identity and date columns?** For the analysis API, set
+`entity_col="your_identifier"` and `timestamp_col="your_date"`; these refer to
+your own input columns. AutoViz imports the **saved result columns**, where
+`entity` is both the linked identifier and the displayed name. Movement dates
+use `quarter` (`YYYY-Qn`) or `month` (`YYYY-MM`); transitions use
+`transition_quarter` (or `transition_month` for Monthly). The matrix is a single
+snapshot, dated by the bundle's `as_of` metadata. The import dialog does not map
+arbitrary source columns or select a separate name column. See the
+[exact column table and mapping example](docs/saved-results.md#required-columns)
+before importing files with different headers.
 
 ## Quick Start
 

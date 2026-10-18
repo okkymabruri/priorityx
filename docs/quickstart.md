@@ -2,9 +2,20 @@
 
 ## Installation
 
+Requires Python 3.12 or later. For virtual-environment commands on macOS and
+Windows, follow [installation](index.md#installation) and the README.
+
 ```bash
-pip install priorityx
+python -m pip install priorityx
 ```
+
+## Open existing results in AutoViz
+
+Run `python -m priorityx app`, then open a result bundle or import saved CSVs.
+To load a bundle immediately, run `python -m priorityx app --bundle results.json`.
+The [workspace guide](app.md) covers linked charts, layout and exports; the
+[saved-result contract](saved-results.md#required-columns) lists required
+identity and period columns. This route does not fit models.
 
 ## Basic Usage
 
@@ -12,8 +23,8 @@ pip install priorityx
 import pandas as pd
 import priorityx as px
 
-# load your data
-df = pd.read_csv("your_data.csv")
+# load your raw events; keep identifiers lexical, including leading zeros
+df = pd.read_csv("your_data.csv", dtype={"service": str})
 df["date"] = pd.to_datetime(df["date"])
 
 # fit priority matrix
@@ -25,8 +36,8 @@ results = px.fit_priority_matrix(
     min_observations=8,
 )
 
-# visualize
-px.plot_priority_matrix(results, entity_name="Service", save_plot=True)
+# visualize and save explicitly
+px.plot_priority_matrix(results, entity_name="Service", plot_path="matrix.png")
 ```
 
 ## Full Workflow
@@ -46,7 +57,10 @@ movement = px.track_movement(
 transitions = px.extract_transitions(movement)
 
 # visualize transitions
-px.plot_transition_timeline(transitions, entity_name="Service", save_plot=True)
+px.plot_transition_timeline(
+    transitions, movement_df=movement, entity_name="Service",
+    plot_path="transitions.png",
+)
 
 # plot trajectories (auto-select top 4 movers from last 6 quarters)
 px.plot_entity_trajectories(
@@ -55,7 +69,7 @@ px.plot_entity_trajectories(
     highlight_top_n=4,
     highlight_by="trajectory_distance",
     recent_periods=6,
-    save_plot=True,
+    plot_path="trajectories.png",
 )
 
 # analyze drivers for a specific transition
@@ -83,12 +97,14 @@ Your data needs:
 
 ## Output
 
-By default, outputs saved to:
-
-- **`results/plot/`** — PNG visualizations (priority matrix, transitions, trajectories)
-- **`results/csv/`** — CSV tables (entity scores, transitions, movement tracking)
-
-You can customize output directories using the `plot_dir` / `csv_dir` / `output_dir` parameters in visualization functions.
+Analysis functions return tables; saving is explicit. Save complete result
+tables using `results.to_csv("priority_matrix.csv", index=False)`,
+`movement.to_csv("movement.csv", index=False)` and
+`transitions.to_csv("transitions.csv", index=False)`, then create a
+[bundle for AutoViz](saved-results.md#build-and-open-a-bundle).
+For plot helpers, `plot_path` / `csv_path` specify exact output paths and imply
+saving. Older directory/save flags remain compatibility options; see
+[output naming](output_naming.md).
 
 ## Deterministic runs
 

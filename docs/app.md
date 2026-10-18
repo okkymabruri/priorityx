@@ -6,6 +6,9 @@ trajectories. The existing Matplotlib plotting API and its defaults are unchange
 
 The workspace requires Python 3.12 or later.
 
+Install it in a virtual environment as shown in the
+[installation instructions](index.md#installation). Then run:
+
 ```sh
 priorityx app --bundle results.json
 # Or use the Python module:
@@ -15,6 +18,8 @@ python -m priorityx app --bundle results.json
 Omit `--bundle` to open an empty workspace. `--port 0` chooses a free port;
 `--port 8765` chooses a particular port. `--no-browser` prints the address without
 opening it. The service binds to `127.0.0.1` and keeps one bundle in memory.
+Keep this terminal open; press Ctrl+C to stop the service. For an unactivated
+Windows environment, use `.\.venv\Scripts\python.exe -m priorityx app`.
 It serves application assets only. It does not expose a filesystem browser,
 write analytical outputs automatically, or provide remote hosting.
 
@@ -27,6 +32,36 @@ closing it preserves the entered fields. Supply type, cadence, coverage and sour
 required columns, duplicate headers, exact row widths and numeric values.
 Additional columns remain caller metadata; source-specific mapping happens in
 the caller's adapter. A failed import leaves the current workspace intact.
+
+## Choose the data and columns
+
+AutoViz reads saved analytical results, not a raw event CSV. The normal flow is
+your event data → `fit_priority_matrix()` / `track_movement()` →
+`extract_transitions()` → result tables or a bundle → AutoViz. Fitting and
+movement tracking are explicit Python analysis operations; opening/importing
+results and applying layout only regenerate visualizations.
+
+During analysis, `entity_col` selects your source identifier/name column and
+`timestamp_col` selects your source date column. In saved results, `entity`
+provides both the display text and the identifier used to link charts. There is
+no separate per-entity display-name selector. `entity_type` identifies the group;
+`type_label` only changes its label in **Type**.
+
+Movement and transition tables have their own period columns; the matrix gets
+its snapshot date from metadata. See [required columns](saved-results.md#required-columns)
+and the [source-column mapping example](saved-results.md#map-existing-result-columns).
+The import dialog assigns file roles and metadata; it does not guess identity
+or date columns. `coverage_start` describes the complete saved history, and
+`as_of` the latest saved snapshot. Neither is a request to filter/refit data.
+
+For a bundle created from your saved CSVs, follow the
+[CSV-to-bundle example](saved-results.md#build-and-open-a-bundle), save it as
+`results.json`, then launch `python -m priorityx app --bundle results.json`.
+Alternatively, import the same three files using the dialog. Supplying only a
+matrix enables its chart; add movement for trajectories and transitions for the
+timeline. Keep the full saved movement table for event classification.
+
+## Inspect the linked charts
 
 Type labels come from the bundle. Quarterly opens when available; a bundle with
 only Monthly results opens Monthly. The timeline shows January/Q1 through the

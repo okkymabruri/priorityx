@@ -6,6 +6,10 @@ cadence (`monthly` or `quarterly`) and can contain independent matrix, movement
 and transition tables. A missing table is represented by `null`; an empty table
 retains its column schema.
 
+## Build and open a bundle
+
+Use your own saved file paths and actual coverage periods:
+
 ```python
 from priorityx.results import ResultBundle, import_results_csv
 
@@ -18,6 +22,121 @@ dataset = import_results_csv(
 ResultBundle([dataset]).save("results.json")
 bundle = ResultBundle.load("results.json")
 ```
+
+```sh
+python -m priorityx app --bundle results.json
+```
+
+The files are analytical outputs: the matrix from `fit_priority_matrix()`,
+movement from `track_movement()`, and transitions from `extract_transitions()`.
+The library returns DataFrames by default. Save the full tables explicitly with
+`matrix.to_csv("priority_matrix.csv", index=False)` and the corresponding
+movement/transition filenames, or pass existing DataFrames directly to
+`import_results_csv(matrix=matrix, movement=movement, transitions=transitions, ...)`.
+Do not substitute a plot's filtered trajectory/timeline CSV for full history.
+
+An empty transition result still needs the required header columns below.
+If there is no transition table, omit `transitions_path`; the app will mark the
+timeline unavailable. Neither case requires inventing events.
+
+## Required columns
+
+Each supplied table must contain these columns. A missing table is allowed.
+
+| Saved CSV role | Identity shown and linked | Period column | Other required columns |
+|---|---|---|---|
+| Matrix | `entity` | None; bundle `as_of` dates the snapshot | `x_score`, `y_score`, `count`, `quadrant` |
+| Movement, Quarterly | `entity` | `quarter`, e.g. `2025-Q1` | `period_x`, `period_y`, `period_quadrant`, `global_quadrant` |
+| Movement, Monthly | `entity` | `month`, e.g. `2025-01`; legacy `quarter` with monthly values is also accepted | Same movement columns |
+| Transitions, Quarterly | `entity` | `transition_quarter`, e.g. `2025-Q1` | `from_quadrant`, `to_quadrant`, `risk_level` |
+| Transitions, Monthly | `entity` | `transition_month` or legacy `transition_quarter`, with `YYYY-MM` values | Same transition columns |
+
+Use only one accepted period column per table; supplying both aliases is
+ambiguous and rejected. `track_movement()` returns its canonical `quarter`
+column even for Monthly, while saved monthly tables may use `month`.
+`extract_transitions()` uses `transition_quarter` for both cadences.
+
+`entity` must be a nonempty string, identical across tables for the same entity.
+It is both the chart label and linkage key; an extra `name` column is retained
+as metadata but does not replace the displayed identifier. To show names instead
+of codes, explicitly map every table's `entity` to the same unique names before
+creating the bundle. Preserve the original code in an extra column if needed;
+do not merge different identities under a duplicate name.
+
+Scores must be finite numbers; `count` is a non-negative integer. Matrix and
+movement quadrants are `Q1`–`Q4`. Transition `from_quadrant` uses `Q1`–`Q4`;
+`to_quadrant` also accepts `*X`, `*Y` or `*XY` suffixes. Supported `risk_level`
+values are `critical`, `high`, `medium`, `low`, `stable` (case-sensitive).
+For existing event-class/spike preparation, retain `cumulative_count` in movement
+when available; without it event colors use the documented Investigate fallback.
+Additional known numeric fields include movement's `global_x`, `global_y`,
+`count_total`, `x_delta`, `y_delta`, `period_count`, `cumulative_count` and
+transitions' `volume_change`, `growth_change`. Optional delta/period-count fields
+may be empty; required scores and counts may not.
+
+Quarterly periods use exactly `YYYY-Q1` through `YYYY-Q4`, Monthly exactly
+`YYYY-MM`. A date such as `2025-03-31` is not a saved period label. Both
+`coverage_start` and `as_of` must use the chosen cadence's format, in order, and
+all movement/transition periods must lie within them. When both tables are
+supplied, each transition must match an existing movement entity/period.
+Matrix identifiers must be unique, movement entity/period pairs unique, and
+transition entity/period/from/to combinations unique. Matrix and movement
+populations may legitimately differ.
+
+## Map existing result columns
+
+The importer does not expose `entity_col` or `timestamp_col`: it expects the
+saved schema above. Rename the identifier and period columns explicitly in your
+adapter. This example starts with **already calculated result CSVs**, not raw
+events; score/quadrant columns are retained unchanged:
+
+```python
+import pandas as pd
+from priorityx.results import ResultBundle, import_results_csv
+
+matrix = pd.read_csv("saved_matrix.csv", dtype={"unit_id": str})
+movement = pd.read_csv("saved_movement.csv", dtype={"unit_id": str})
+transitions = pd.read_csv("saved_transitions.csv", dtype={"unit_id": str})
+
+matrix = matrix.rename(columns={"unit_id": "entity"})
+movement = movement.rename(columns={"unit_id": "entity", "period": "quarter"})
+transitions = transitions.rename(
+    columns={"unit_id": "entity", "event_period": "transition_quarter"}
+)
+
+dataset = import_results_csv(
+    entity_type="work_unit", type_label="Work units", cadence="quarterly",
+    source_id="saved-analysis", coverage_start="2025-Q1", as_of="2025-Q4",
+    matrix=matrix, movement=movement, transitions=transitions,
+)
+ResultBundle([dataset]).save("results.json")
+```
+
+Here `period` and `event_period` already contain `YYYY-Qn` labels. If your saved
+result uses actual endpoint dates, convert that column deliberately, for example
+`pd.to_datetime(movement["quarter"], errors="raise").dt.to_period("Q").astype(str).str.replace("Q", "-Q", regex=False)`.
+For Monthly use `.dt.to_period("M").astype(str)` and the `month` column.
+Check that conversion has not collapsed two saved rows into one entity/period;
+the validator rejects duplicates. Do not aggregate or change scores to make an
+import pass. Reading an identifier as a string preserves `001`; converting an
+already parsed integer back to text cannot restore lost leading zeros.
+
+For raw-event analysis, keep your own source headers and pass their names to
+the existing [analysis API](quickstart.md):
+
+```python
+import priorityx as px
+
+events = pd.read_csv("events.csv", dtype={"unit_id": str})
+events["observed_at"] = pd.to_datetime(events["observed_at"], errors="raise")
+# These run analysis; they are not AutoViz import or layout controls:
+# matrix = px.fit_priority_matrix(events, entity_col="unit_id",
+#     timestamp_col="observed_at", temporal_granularity="quarterly")
+# movement = px.track_movement(events, entity_col="unit_id",
+#     timestamp_col="observed_at", temporal_granularity="quarterly")
+```
+
+## Validation and provenance
 
 CSV roles are passed explicitly; filenames are never inferred. Identifiers are
 read as strings (so values such as `001` remain unchanged), while known numeric

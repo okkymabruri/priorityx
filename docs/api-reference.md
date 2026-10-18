@@ -608,7 +608,7 @@ from pathlib import Path
 
 # Basic usage (no save)
 fig = px.plot_entity_trajectories(
-    movement_df.drop(columns=["last_active_quarter"], errors="ignore"),
+    movement_df,
     entity_name="Entity",
     max_entities=10,
 )
@@ -617,7 +617,7 @@ fig = px.plot_entity_trajectories(
 PLOT_DIR = Path("results/plot")
 CSV_DIR = Path("results/csv")
 fig = px.plot_entity_trajectories(
-    movement_df.drop(columns=["last_active_quarter"], errors="ignore"),
+    movement_df,
     entity_name="Entity",
     highlight_top_n=4,                   # auto-select top 4 entities
     highlight_by="trajectory_distance",  # by path length (or "total_movement")
@@ -634,11 +634,9 @@ This original helper selects up to ten entities by default; AutoViz's separate
 default is three ranked trend-change paths. Its optional CSV contains only the
 selected/retained plot rows; save full movement separately. With `period_count`,
 the helper trims each path after its last positive-count period.
-For an older saved table that already contains `last_active_quarter`, pass a
-copy without that derived column, as above. The original plot helper otherwise
-collides with its own merge of that name and raises `KeyError`. Keep the full
-saved table unchanged; this compatibility workaround applies only to the
-original Matplotlib trajectory helper, not AutoViz import.
+Saved tables may already contain `last_active_quarter`; the helper derives the
+activity boundary without colliding with that metadata. The caller's full saved
+table remains unchanged, and AutoViz uses the same saved history independently.
 
 **Parameters:**
 

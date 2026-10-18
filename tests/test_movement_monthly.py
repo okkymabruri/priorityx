@@ -3,6 +3,8 @@
 from datetime import datetime, timedelta
 
 import pandas as pd
+import numpy as np
+import pytest
 
 import priorityx as px
 
@@ -107,6 +109,43 @@ def test_monthly_trajectories_smoke():
 
     assert fig is not None
     assert fig.axes[0].get_title() == "Product support units Entity Trajectory"
+
+
+@pytest.mark.parametrize("monthly", [False, True])
+def test_trajectories_accept_saved_last_active_metadata(monthly):
+    """Existing saved activity metadata must not collide with trimming."""
+    movement_df = pd.DataFrame(
+        {
+            "entity": ["A", "A", "B", "B"],
+            "quarter": ["2023-01", "2023-02", "2023-01", "2023-02"],
+            "period_count": [2, 1, 3, 0],
+            "cumulative_count": [2, 3, 3, 3],
+            "period_x": [0.1, 0.2, -0.1, -0.2],
+            "period_y": [0.2, 0.3, -0.2, -0.1],
+            "x_delta": [0.0, 0.1, 0.0, -0.1],
+            "y_delta": [0.0, 0.1, 0.0, 0.1],
+            "global_quadrant": ["Q1", "Q1", "Q3", "Q3"],
+        }
+    )
+    if not monthly:
+        movement_df["quarter"] = movement_df["quarter"].map({"2023-01": "2023-Q1", "2023-02": "2023-Q2"})
+    saved = movement_df.copy()
+    saved["last_active_quarter"] = saved.groupby("entity")["quarter"].transform("max")
+    original = saved.copy(deep=True)
+    fig = px.plot_entity_trajectories(
+        saved,
+        entity_name="Entity",
+        save_plot=False,
+        save_csv=False,
+        close_fig=True,
+    )
+    assert fig is not None
+    np.testing.assert_allclose(fig.axes[0].lines[0].get_xydata(), [[.1, .2], [.2, .3]])
+    assert not any(text.get_text() == "B" for text in fig.axes[0].texts)
+    without_metadata = px.plot_entity_trajectories(movement_df, close_fig=True)
+    for actual, expected in zip(fig.axes[0].lines, without_metadata.axes[0].lines):
+        np.testing.assert_allclose(actual.get_xydata(), expected.get_xydata())
+    pd.testing.assert_frame_equal(saved, original)
 
 
 def test_trajectories_highlight_top_n():

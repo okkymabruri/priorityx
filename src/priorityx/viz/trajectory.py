@@ -50,10 +50,8 @@ def plot_entity_trajectories(
     Shows cumulative entity trajectories over quarterly or monthly periods,
     displaying how entities move through priority quadrants.
 
-    For saved tables already containing last_active_quarter, pass a copy with
-    that derived column dropped before plotting. Otherwise the internal merge
-    of last-active metadata collides with the existing column. Full saved input
-    tables and the AutoViz importer need not be changed.
+    Saved tables may already contain ``last_active_quarter``. The helper derives
+    the activity boundary without merging a conflicting metadata column.
 
     Args:
         movement_df: DataFrame from track_movement()
@@ -105,16 +103,12 @@ def plot_entity_trajectories(
         active = df_trim[df_trim["period_count"].fillna(0) > 0]
         if not active.empty:
             last_active = active.groupby("entity")[period_col].max()
-            df_trim = df_trim.merge(
-                last_active.rename("last_active_quarter"),
-                on="entity",
-                how="left",
-            )
+            activity_boundary = df_trim["entity"].map(last_active)
             # keep only entities that ever had positive period_count
             # and cut them at their last active period
             df_trim = df_trim[
-                df_trim["last_active_quarter"].notna()
-                & (df_trim[period_col] <= df_trim["last_active_quarter"])
+                activity_boundary.notna()
+                & (df_trim[period_col] <= activity_boundary)
             ]
             movement_df = df_trim
 

@@ -69,7 +69,7 @@ px.plot_transition_timeline(
 
 # plot trajectories (auto-select top 4 movers from last 6 quarters)
 px.plot_entity_trajectories(
-    movement.drop(columns=["last_active_quarter"], errors="ignore"),
+    movement,
     entity_name="service",
     highlight_top_n=4,
     highlight_by="trajectory_distance",

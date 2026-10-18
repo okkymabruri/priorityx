@@ -7,7 +7,7 @@ trajectories. The existing Matplotlib plotting API and its defaults are unchange
 The workspace requires Python 3.12 or later.
 
 Install it in a virtual environment as shown in the
-[installation instructions](index.md#installation). Then run:
+[installation instructions](installation.md). Then run:
 
 ```sh
 priorityx app --bundle results.json
@@ -22,6 +22,9 @@ Keep this terminal open; press Ctrl+C to stop the service. For an unactivated
 Windows environment, use `.\.venv\Scripts\python.exe -m priorityx app`.
 It serves application assets only. It does not expose a filesystem browser,
 write analytical outputs automatically, or provide remote hosting.
+
+For a ready-to-open dataset, follow the [IT incidents walkthrough](autoviz-example.md).
+It uses saved example results and includes all three chart families.
 
 ## Open and inspect
 

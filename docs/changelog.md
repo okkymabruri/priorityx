@@ -2,6 +2,11 @@
 
 Only major releases (v0.x.0) are listed.
 
+## Unreleased
+
+- Separate installation from the README and add a ready-to-open IT incidents
+  AutoViz example using existing saved results, with a workspace screenshot.
+
 ---
 
 ## v0.7.0 (2026-10-18)

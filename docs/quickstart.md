@@ -2,17 +2,14 @@
 
 ## Installation
 
-Requires Python 3.12 or later. For virtual-environment commands on macOS and
-Windows, follow [installation](index.md#installation) and the README.
-
-```bash
-python -m pip install priorityx
-```
+Follow [installation](installation.md) for Python requirements and environment
+setup on macOS, Linux and Windows.
 
 ## Open existing results in AutoViz
 
 Run `python -m priorityx app`, then open a result bundle or import saved CSVs.
 To load a bundle immediately, run `python -m priorityx app --bundle results.json`.
+Try the [saved IT incidents sample](autoviz-example.md) for a complete example.
 The [workspace guide](app.md) covers linked charts, layout and exports; the
 [saved-result contract](saved-results.md#required-columns) lists required
 identity and period columns. This route does not fit models.

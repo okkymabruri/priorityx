@@ -1,201 +1,79 @@
-# Priorityx: Entity prioritization and escalation detection using GLMM statistical models
+# PriorityX
 
-[![PyPI version](https://badge.fury.io/py/priorityx.svg)](https://badge.fury.io/py/priorityx)
+[![PyPI version](https://badge.fury.io/py/priorityx.svg)](https://pypi.org/project/priorityx/)
 [![Downloads](https://static.pepy.tech/badge/priorityx)](https://pepy.tech/project/priorityx)
 [![Tests](https://github.com/okkymabruri/priorityx/workflows/Tests/badge.svg)](https://github.com/okkymabruri/priorityx/actions)
 [![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Entity prioritization and escalation detection using GLMM statistical models
+Prioritize entities and detect escalation using GLMM statistical models.
+Analyze event data in Python, then explore saved results in AutoViz.
+Example applications include IT incidents, software bugs and compliance monitoring.
 
-## Installation
+**[Installation](https://github.com/okkymabruri/priorityx/blob/main/docs/installation.md)** ·
+**[AutoViz guide](https://github.com/okkymabruri/priorityx/blob/main/docs/app.md)** ·
+**[Python quickstart](https://github.com/okkymabruri/priorityx/blob/main/docs/quickstart.md)** ·
+**[API reference](https://github.com/okkymabruri/priorityx/blob/main/docs/api-reference.md)**
 
-Requires Python 3.12 or later.
-
-On macOS/Linux:
-
-```sh
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install priorityx
-```
-
-On Windows PowerShell:
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install priorityx
-.\.venv\Scripts\python.exe -m priorityx app
-```
-
-The Windows command uses the environment directly; activation is optional.
-
-## AutoViz: interactive saved-results workspace
+## AutoViz
 
 Explore a linked **quadrant matrix → YTD transition timeline → trajectories**
-and regenerate layouts through browser controls. AutoViz reads saved results;
-opening charts or changing their layout does not fit models.
+in your browser. Select an entity across charts, inspect exact values, adjust
+chart space and save an interactive HTML view that reopens offline.
 
-Start the workspace:
+![AutoViz showing five IT services: a quadrant matrix, 2025 YTD events and three recent trajectories.](https://raw.githubusercontent.com/okkymabruri/priorityx/main/docs/assets/autoviz-incidents.webp)
 
-```bash
-python -m priorityx app
+### Try the IT incidents example
+
+Save the [example bundle](https://raw.githubusercontent.com/okkymabruri/priorityx/main/examples/autoviz/incidents-quarterly.json)
+as `incidents-quarterly.json`, then run:
+
+```sh
+python -m priorityx app --bundle incidents-quarterly.json
 ```
 
-The app opens in your browser and runs locally on macOS, Windows and Linux.
-Keep the terminal running while using the app; press Ctrl+C to stop it.
+This sample uses existing saved results from PriorityX's IT incidents example:
+five services with quarterly history from 2023 to 2025. It opens on **Quarterly**,
+with a **2025 YTD** timeline and three automatically selected trajectories.
+Opening results and changing layouts do not fit models.
 
-1. **Open results**: choose a saved result bundle, or **Import CSV files** and
-   assign your saved matrix, movement and transition CSVs. Supply the type label,
-   cadence, coverage and source metadata. These are PriorityX result tables;
-   source-specific raw data must be transformed by your own adapter first.
-2. **Choose Type and cadence**: labels come from your results. Quarterly opens
-   when available. The timeline shows YTD through the latest saved period;
-   full history is retained for event classification and trajectories.
-3. **Inspect and adjust**: select an entity to link the charts, zoom or **Reset
-   view**, and open **View data** for exact values. Use **Layout** to adjust equal
-   panel sizes and apply the changes. **Save settings** and **Load settings**
-   inside Layout preserve a portable view configuration.
-4. **Export**: **Export → Save offline HTML** saves an interactive view that
-   reopens without Python or a network connection. Matrix SVG also works offline;
-   print PNG/SVG exports require the running local app. The HTML contains the
-   full saved data, so share it with the same care as the source results.
+See the [example walkthrough](https://github.com/okkymabruri/priorityx/blob/main/docs/autoviz-example.md) for what to inspect and
+the sample's provenance. To open your own results, run `python -m priorityx app`
+and choose **Open results**. The [saved-result guide](https://github.com/okkymabruri/priorityx/blob/main/docs/saved-results.md#required-columns)
+lists the identity, period and score columns required for CSV import.
 
-To open a bundle directly:
+## Python API
 
-```bash
-python -m priorityx app --bundle results.json
-```
-
-<details>
-<summary>Create a bundle from existing saved CSVs</summary>
-
-```python
-from priorityx.results import ResultBundle, import_results_csv
-
-dataset = import_results_csv(
-    entity_type="work_unit", type_label="Work units",
-    cadence="quarterly", source_id="saved-analysis",
-    coverage_start="2025-Q1", as_of="2025-Q4",
-    matrix_path="priority_matrix.csv",
-    movement_path="movement.csv",
-    transitions_path="transitions.csv",
-)
-ResultBundle([dataset]).save("results.json")
-```
-
-Use your actual file paths and coverage dates. Quarterly dates use `YYYY-Qn`;
-monthly dates use `YYYY-MM` with `cadence="monthly"`. A bundle can hold multiple
-types and cadences by including more datasets in `ResultBundle([...])`.
-
-</details>
-
-See the [workspace guide](docs/app.md) for controls, layout, state and exports,
-and the [saved-result contract](docs/saved-results.md) for import validation and
-trajectory selection.
-
-**Which identity and date columns?** For the analysis API, set
-`entity_col="your_identifier"` and `timestamp_col="your_date"`; these refer to
-your own input columns. AutoViz imports the **saved result columns**, where
-`entity` is both the linked identifier and the displayed name. Movement dates
-use `quarter` (`YYYY-Qn`) or `month` (`YYYY-MM`); transitions use
-`transition_quarter` (or `transition_month` for Monthly). The matrix is a single
-snapshot, dated by the bundle's `as_of` metadata. The import dialog does not map
-arbitrary source columns or select a separate name column. See the
-[exact column table and mapping example](docs/saved-results.md#required-columns)
-before importing files with different headers.
-
-## Quick Start
+Fit a priority matrix from your event data and save a chart:
 
 ```python
 import pandas as pd
 import priorityx as px
 
-df = pd.read_csv("data.csv")
-
-# Default: volume x growth (single GLMM)
-results = px.fit_priority_matrix(
-    df,
+events = pd.read_csv("events.csv", parse_dates=["opened_at"])
+matrix = px.fit_priority_matrix(
+    events,
     entity_col="service",
-    timestamp_col="date",
+    timestamp_col="opened_at",
     temporal_granularity="quarterly",
 )
-# Returns: entity, x_score, y_score, count, quadrant
-
-px.plot_priority_matrix(results, entity_name="Service", save_plot=True)
+px.plot_priority_matrix(matrix, entity_name="Service", plot_path="matrix.png")
 ```
 
-### Custom Axes
-
-```python
-# Custom Y axis: volume × resolution_days (two GLMMs)
-results = px.fit_priority_matrix(
-    df,
-    entity_col="service",
-    timestamp_col="date",
-    y_metric="resolution_days",
-)
-
-# Custom both axes: disputed_amount × paid_amount
-results = px.fit_priority_matrix(
-    df,
-    entity_col="service",
-    timestamp_col="date",
-    x_metric="disputed_amount",
-    y_metric="paid_amount",
-)
-```
-
-### Composite Indices
-
-```python
-# Add entity metrics
-metrics = px.aggregate_entity_metrics(
-    df,
-    entity_col="service",
-    duration_start_col="opened_at",
-    duration_end_col="closed_at",
-    primary_col="exposure",
-    secondary_col="recovery",
-)
-results = results.merge(metrics, left_on="entity", right_on="service", how="left")
-
-# Add weighted indices: RI (Risk), SQI (Service Quality), EWI (Early Warning)
-results = px.add_priority_indices(
-    results,
-    volume_col="count",
-    growth_col="y_score",
-    severity_col="total_primary",
-    resolution_col="mean_duration",
-    recovery_col="secondary_to_primary_ratio",
-    # customize weights (default shown)
-    w_volume=0.4, w_growth=0.4, w_severity=0.2,
-    w_resolution=0.5, w_recovery=0.5,
-    w_risk=0.7, w_quality=0.3,
-)
-
-# Top priority entities
-top_risks = results.nlargest(10, "EWI")
-```
-
-## Features
-
-- AutoViz local workspace with linked interactive charts, automatic layout and offline HTML export
-- GLMM-based priority matrix (Q1–Q4) with entity-level intercept/slope insights
-- Priority-based transition timeline (Crisis / Investigate / Monitor / Low) with spike markers (`*X`, `*Y`, `*XY`)
-- Cumulative movement tracking and trajectory visualizations
-- Transition driver analysis that surfaces top subcategories causing quadrant shifts with spike summaries
-- Deterministic seeding option for reproducible GLMM runs (set `PRIORITYX_GLMM_SEED`)
-
-## Use Cases
-
-IT incidents, software bugs, compliance violations, performance monitoring.
+PriorityX also provides cumulative movement tracking, transition detection,
+driver analysis, custom score axes and weighted composite indices. The
+[Python quickstart](https://github.com/okkymabruri/priorityx/blob/main/docs/quickstart.md) covers the analysis workflow;
+the [API reference](https://github.com/okkymabruri/priorityx/blob/main/docs/api-reference.md) documents parameters and outputs.
 
 ## Documentation
 
-- [AutoViz Workspace](docs/app.md)
-- [Saved Results and CSV Import](docs/saved-results.md)
-- [Quick Start](docs/quickstart.md)
-- [API Reference](docs/api-reference.md)
-- [Methodology](docs/methodology.md)
-- [Priority Classification](docs/priority_classification.md)
+| Guide | What it covers |
+|---|---|
+| [Installation](https://github.com/okkymabruri/priorityx/blob/main/docs/installation.md) | Python requirements, macOS/Linux and Windows setup, upgrades |
+| [AutoViz example](https://github.com/okkymabruri/priorityx/blob/main/docs/autoviz-example.md) | Open and explore the saved IT incidents sample |
+| [AutoViz workspace](https://github.com/okkymabruri/priorityx/blob/main/docs/app.md) | Linked charts, selection, layout, settings and exports |
+| [Saved results](https://github.com/okkymabruri/priorityx/blob/main/docs/saved-results.md) | Data sources, identity/date columns, CSV mapping and validation |
+| [Python quickstart](https://github.com/okkymabruri/priorityx/blob/main/docs/quickstart.md) | Fit, track movement and detect transitions |
+| [Methodology](https://github.com/okkymabruri/priorityx/blob/main/docs/methodology.md) | Statistical models and score interpretation |
+| [Priority classification](https://github.com/okkymabruri/priorityx/blob/main/docs/priority_classification.md) | Quadrants and transition classes |
+| [Examples](https://github.com/okkymabruri/priorityx/blob/main/examples/README.md) | IT incidents, software bugs and compliance workflows |

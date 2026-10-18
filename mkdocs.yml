@@ -26,6 +26,8 @@ theme:
 
 nav:
   - Home: index.md
+  - Installation: installation.md
+  - AutoViz Example: autoviz-example.md
   - Quick Start: quickstart.md
   - API Reference: api-reference.md
   - Saved Results: saved-results.md

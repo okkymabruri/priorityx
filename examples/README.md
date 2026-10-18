@@ -2,17 +2,21 @@
 
 These examples demonstrate priorityx usage with different datasets.
 
+## Explore saved results in AutoViz
+
+Open the [IT incidents sample](autoviz/incidents-quarterly.json) without fitting models:
+
+```sh
+python -m priorityx app --bundle examples/autoviz/incidents-quarterly.json
+```
+
+Run this from the repository root after [installation](../docs/installation.md).
+The [walkthrough](../docs/autoviz-example.md) explains the linked charts and
+the five-service saved-result sample's provenance.
+
 ## Prerequisites
 
-Install priorityx from PyPI:
-```bash
-pip install priorityx
-```
-
-Or install latest from source:
-```bash
-pip install git+https://github.com/okkymabruri/priorityx.git
-```
+Follow the [installation guide](../docs/installation.md) for package or source setup.
 
 ## Running Examples
 

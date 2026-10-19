@@ -3,6 +3,18 @@
 Selected release notes are listed below. Current imports, defaults and
 limitations are documented in the [API reference](api-reference.md).
 
+## Unreleased — v0.7.2
+
+- Reuse movement caches by a 16-character data/settings fingerprint instead of
+  the latest dated file. Changed requests preserve earlier results; old date-only
+  caches are ignored without migration or rewriting.
+- Forward inactivity-window and prior settings through `load_or_track_movement()`;
+  include the effective seed, normalized schedule and package version in cache keys.
+- Recompute only the matching cache with `use_cache=False`, using atomic saves
+  that preserve previous output on failure. Unreadable keyed files raise an error.
+- Preserve text identifiers, numeric precision and Monthly period-column spelling
+  through cache round trips. Keep unkeyed artifact-helper naming compatible.
+
 ## v0.7.1 (2026-10-18)
 
 - Correct driver raw-event windows to matching calendar quarters, including

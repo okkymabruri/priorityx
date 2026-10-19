@@ -87,17 +87,38 @@ results/csv/trajectories-service-M-20251018.csv
 `priorityx.utils.helpers.save_dataframe_to_csv()` saves the supplied table using
 the same naming convention. `generate_output_path()` constructs that path and
 creates the directory; it returns a relative path when `output_dir` is relative.
-These helpers' `output_dir` arguments remain supported.
+These helpers' `output_dir` arguments remain supported. An optional `key` replaces
+the date with a 16-character lowercase hexadecimal fingerprint; keyed saves use
+an atomic replacement. `latest_artifact_csv()` without a key searches date-only
+names; with a key, it finds only that exact request and never falls back to a
+different key or dated file.
 
-`load_or_track_movement()` first searches for a matching movement CSV when
-`use_cache=True` (the default). It matches artifact, entity slug and cadence,
-then chooses the lexicographically latest filename. It does **not** validate the
-input rows, identity/date mapping, requested range, thresholds or model settings
-against the saved file. Choose separate output directories or set
-`use_cache=False` when those inputs change. Recomputing can replace a same-day
-file, so preserve outputs that you need for comparison first.
+`load_or_track_movement()` uses keyed filenames:
 
-For Monthly, this helper returns canonical `quarter` in memory and saves `month`
-on disk. Loading a legacy Monthly file can rewrite its `quarter` header to
-`month`. This explicit analysis/cache helper has disk effects; opening results in
-AutoViz does not invoke it.
+```text
+movement-service-Q-a8f3c2d194e76b02.csv
+```
+
+The key reflects the complete supplied DataFrame (including index, column names,
+dtypes and order), identity/date mappings, normalized schedule, thresholds,
+priors, inactivity window, effective seed and package/cache version. These are
+illustrative keys, not data coverage dates. Apply data filters before calling;
+changes to unused columns also invalidate the cache conservatively.
+
+| Request | Behavior |
+|---|---|
+| Same data and settings | Reuse the exact CSV; no fitting or rewriting |
+| Changed data or settings | Compute a separate keyed file; preserve other results |
+| `use_cache=False` | Recompute and atomically replace only the matching file |
+| Only old date-only CSVs exist | Leave them untouched and compute a keyed result |
+| Matching keyed CSV is unreadable | Raise an error; do not silently refit |
+
+Failed fitting or saving leaves previous output intact. No manifest, timestamp
+or run counter is added to keyed cache names. A readable file's manually edited
+values are not detected; these are request fingerprints, not output checksums.
+The first call after upgrading can refit because old caches cannot establish
+which inputs produced them.
+
+For Monthly, the wrapper returns canonical `quarter` in memory and saves `month`
+on disk. Cache reads never rewrite a header. This explicit analysis/cache helper
+has disk effects; opening results in AutoViz does not invoke it.

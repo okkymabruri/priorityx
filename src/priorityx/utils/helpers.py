@@ -1,10 +1,68 @@
 """Display and summary utilities."""
 
+import hashlib
+import json
 import os
+import re
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+import numpy as np
+
+
+def compute_cache_key(df: pd.DataFrame, params: dict, version: str | None = None) -> str:
+    """Fingerprint input values/schema and resolved settings for movement reuse.
+
+    Row/index/column order is significant; parameter dictionary order is not.
+    Values must be scalar and hashable. This identifies a request, not the
+    integrity of a CSV that someone subsequently edits.
+    """
+    from priorityx import __version__
+
+    def dtype_schema(dtype):
+        if isinstance(dtype, pd.CategoricalDtype):
+            return [str(dtype), dtype.ordered,
+                    [(type(value).__name__, repr(value)) for value in dtype.categories]]
+        return str(dtype)
+
+    def scalar(value):
+        if isinstance(value, np.generic):
+            return value.item()
+        raise TypeError(f"Unsupported cache parameter type: {type(value).__name__}")
+
+    index_levels = [df.index.get_level_values(i) for i in range(df.index.nlevels)]
+    schema = {
+        "cache_version": 1,
+        "package_version": __version__ if version is None else version,
+        "columns": [(type(col).__name__, repr(col)) for col in df.columns],
+        "column_names": [repr(name) for name in df.columns.names],
+        "dtypes": [dtype_schema(dtype) for dtype in df.dtypes],
+        "index_type": type(df.index).__name__,
+        "index_names": [repr(name) for name in df.index.names],
+        "index_dtypes": [dtype_schema(level.dtype) for level in index_levels],
+        "params": params,
+    }
+    try:
+        digest = hashlib.sha256(json.dumps(
+            schema, sort_keys=True, ensure_ascii=False, allow_nan=False, default=scalar,
+        ).encode("utf-8"))
+        digest.update(pd.util.hash_pandas_object(df, index=True).to_numpy(dtype="<u8").tobytes())
+        # Pandas can hash an object integer and its text form identically.
+        # Include scalar types for object columns/index levels to distinguish them.
+        for values in [*(df.iloc[:, i] for i in range(len(df.columns))), *index_levels]:
+            if pd.api.types.is_object_dtype(values.dtype):
+                types = pd.Series(values).map(lambda value: f"{type(value).__module__}.{type(value).__qualname__}")
+                digest.update(pd.util.hash_pandas_object(types, index=False).to_numpy(dtype="<u8").tobytes())
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Cannot fingerprint cache inputs; use hashable scalar data and finite settings") from exc
+    return digest.hexdigest()[:16]
+
+
+def _validate_cache_key(key: str) -> None:
+    if not isinstance(key, str) or re.fullmatch(r"[0-9a-f]{16}", key) is None:
+        raise ValueError("Cache key must contain 16 lowercase hexadecimal characters")
 
 
 def display_quadrant_summary(
@@ -242,6 +300,8 @@ def generate_output_path(
     temporal_granularity: str = "quarterly",
     output_dir: str = "results/csv",
     extension: str = "csv",
+    *,
+    key: str | None = None,
 ) -> str:
     """Generate a standardized output path for saved artifacts.
 
@@ -251,6 +311,7 @@ def generate_output_path(
         temporal_granularity: Granularity key for suffix (default: "quarterly")
         output_dir: Directory where file should be saved (default: "results/csv")
         extension: File extension (default: "csv")
+        key: Optional request fingerprint instead of a filename date.
 
     Returns:
         Path within ``output_dir``; relative when the supplied directory is
@@ -264,11 +325,13 @@ def generate_output_path(
         "monthly": "M",
     }.get(temporal_granularity, "Q")
 
-    timestamp = datetime.now().strftime("%Y%m%d")
+    if key is not None:
+        _validate_cache_key(key)
+    suffix = key if key is not None else datetime.now().strftime("%Y%m%d")
     entity_slug = entity_name.lower().replace(" ", "_")
 
     os.makedirs(output_dir, exist_ok=True)
-    filename = f"{artifact}-{entity_slug}-{granularity_suffix}-{timestamp}.{extension}"
+    filename = f"{artifact}-{entity_slug}-{granularity_suffix}-{suffix}.{extension}"
     return os.path.join(output_dir, filename)
 
 
@@ -278,6 +341,8 @@ def save_dataframe_to_csv(
     entity_name: str,
     temporal_granularity: str = "quarterly",
     output_dir: str = "results/csv",
+    *,
+    key: str | None = None,
 ) -> str:
     """Save a DataFrame using the standardized naming convention.
 
@@ -287,6 +352,7 @@ def save_dataframe_to_csv(
         entity_name: Friendly entity label for naming
         temporal_granularity: Granularity key for suffix
         output_dir: Directory where file should live
+        key: Optional fingerprint; keyed saves replace atomically on success.
 
     Returns:
         Path to the saved CSV file.
@@ -298,8 +364,23 @@ def save_dataframe_to_csv(
         temporal_granularity=temporal_granularity,
         output_dir=output_dir,
         extension="csv",
+        key=key,
     )
-    df.to_csv(output_path, index=False)
+    if key is None:
+        df.to_csv(output_path, index=False)
+    else:
+        temporary_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", newline="", delete=False,
+                dir=Path(output_path).parent, prefix=f".{Path(output_path).name}.", suffix=".tmp",
+            ) as temporary:
+                temporary_path = Path(temporary.name)
+                df.to_csv(temporary, index=False)
+            os.replace(temporary_path, output_path)
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
     return output_path
 
 
@@ -308,8 +389,10 @@ def latest_artifact_csv(
     entity_name: str,
     output_dir: str = "results/csv",
     temporal_granularity: str | None = None,
+    *,
+    key: str | None = None,
 ) -> str | None:
-    """Find the latest CSV for a given artifact/entity pair.
+    """Find an exact keyed CSV, or the latest date-only CSV without a key.
 
     Assumes filenames follow ``generate_output_path`` convention:
     ``<output_dir>/<artifact>-<entity_slug>-<granularity>-<YYYYMMDD>.csv``.
@@ -317,10 +400,14 @@ def latest_artifact_csv(
     If ``temporal_granularity`` is provided, restricts matches to that
     granularity suffix (e.g. "Q", "M"); otherwise returns the latest
     CSV across all granularities.
+    Keyed lookup never falls back to another key or a date-only file.
     """
 
     slug = entity_name.lower().replace(" ", "_")
     directory = Path(output_dir)
+
+    if key is not None:
+        _validate_cache_key(key)
 
     if temporal_granularity is not None:
         granularity_suffix = {
@@ -329,9 +416,13 @@ def latest_artifact_csv(
             "semiannual": "S",
             "monthly": "M",
         }.get(temporal_granularity, "Q")
+        if key is not None:
+            path = directory / f"{artifact}-{slug}-{granularity_suffix}-{key}.csv"
+            return str(path) if path.exists() else None
         pattern = f"{artifact}-{slug}-{granularity_suffix}-*.csv"
     else:
-        pattern = f"{artifact}-{slug}-*.csv"
+        pattern = f"{artifact}-{slug}-[QYSM]-{key if key is not None else '*'}.csv"
 
-    matches = sorted(directory.glob(pattern))
+    matches = sorted(path for path in directory.glob(pattern)
+                     if path.is_file() and (key is not None or re.fullmatch(r"\d{8}", path.stem.rsplit("-", 1)[-1])))
     return str(matches[-1]) if matches else None

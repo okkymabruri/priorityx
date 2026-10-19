@@ -290,12 +290,21 @@ movement, csv_path = px.load_or_track_movement(
 )
 ```
 
-Caches movement tracking results to disk. On subsequent runs, loads from
-cache if available (`use_cache=True` by default).
-The lookup uses entity slug and cadence, not input hashes or parameter equality.
-Use a separate directory or `use_cache=False` after changing source data, range,
-column mapping or fitting requirements. This helper writes results on a cache
-miss and can rewrite legacy Monthly headers; see [output naming](output_naming.md).
+Caches movement tracking results by a 16-character input/settings fingerprint
+(`use_cache=True` by default). Repeating a request reuses its exact CSV without
+fitting or rewriting it. Changing the supplied data, column mapping, period
+schedule, thresholds, priors, inactivity window, effective GLMM seed or package
+version creates a different file and preserves the previous result.
+The fingerprint includes all supplied values, columns, dtypes, index and order;
+even an unused column can invalidate it. Apply source filters before calling the
+wrapper; their resulting DataFrame is fingerprinted. Equivalent normalized
+period schedules share a key.
+
+`use_cache=False` explicitly recomputes and atomically replaces only that
+request's file. Failed fitting or saving preserves existing output. Old date-only
+CSVs are ignored and left unchanged, so the first call after upgrading may fit
+again. An unreadable keyed CSV raises `ValueError` with recomputation guidance.
+No manifest or run history is written. See [output naming](output_naming.md).
 
 **Parameters:**
 
@@ -305,14 +314,18 @@ miss and can rewrite legacy Monthly headers; see [output naming](output_naming.m
 - `timestamp_col`: Timestamp column name
 - `quarters`: Period specification
 - `min_total_count`: Minimum count threshold
+- `decline_window_quarters`: Inactivity window forwarded to tracking (default: 6)
 - `temporal_granularity`: "quarterly" or "monthly" (default: "quarterly")
+- `vcp_p`: Random effects prior scale (default: 3.5)
+- `fe_p`: Fixed effects prior scale (default: 3.0)
 - `output_dir`: Cache directory (default: "results/csv")
 - `use_cache`: Load from cache if available (default: True)
 - `return_path`: If True, returns (DataFrame, csv_path) tuple (default: False)
 
-The wrapper uses tracking's default priors/inactivity window; it does not expose
-`vcp_p`, `fe_p` or `decline_window_quarters` overrides. Use `track_movement()`
-directly when you need those settings.
+These prior/inactivity settings are forwarded unchanged to `track_movement()`.
+Set a fixed seed with `set_glmm_random_seed()` for repeatable refits; a cache hit
+reopens previously saved estimates. The key identifies the analysis request and
+does not detect manual edits to otherwise readable output values.
 
 **Returns:**
 

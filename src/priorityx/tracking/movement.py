@@ -5,7 +5,7 @@ from typing import Dict, Literal, Optional, Sequence, Tuple, Union, overload
 
 import pandas as pd
 
-from priorityx.utils.helpers import latest_artifact_csv, save_dataframe_to_csv
+from priorityx.utils.helpers import compute_cache_key, latest_artifact_csv, save_dataframe_to_csv
 
 
 def _is_quarter_start(ts: pd.Timestamp) -> bool:
@@ -702,7 +702,10 @@ def load_or_track_movement(
     timestamp_col: str,
     quarters,
     min_total_count: int,
+    decline_window_quarters: int = ...,
     temporal_granularity: str = ...,
+    vcp_p: float = ...,
+    fe_p: float = ...,
     output_dir: str = ...,
     use_cache: bool = ...,
     return_path: Literal[False] = ...,
@@ -718,7 +721,10 @@ def load_or_track_movement(
     timestamp_col: str,
     quarters,
     min_total_count: int,
+    decline_window_quarters: int = ...,
     temporal_granularity: str = ...,
+    vcp_p: float = ...,
+    fe_p: float = ...,
     output_dir: str = ...,
     use_cache: bool = ...,
     return_path: Literal[True] = ...,
@@ -733,19 +739,24 @@ def load_or_track_movement(
     timestamp_col: str,
     quarters,
     min_total_count: int,
+    decline_window_quarters: int = 6,
     temporal_granularity: str = "quarterly",
+    vcp_p: float = 3.5,
+    fe_p: float = 3.0,
     output_dir: str = "results/csv",
     use_cache: bool = True,
     return_path: bool = False,
 ) -> Union[pd.DataFrame, Tuple[pd.DataFrame, Optional[str]]]:
-    """Load latest movement CSV for entity or compute and save.
+    """Reuse the movement CSV for these inputs/settings, or compute and save.
 
-    When ``use_cache`` is True, tries to load the most recent
-    ``movement-<entity_slug>-*.csv`` from ``output_dir``. If not
-    found, runs tracking and saves a fresh movement CSV. The lookup does not
-    compare input data, column mapping, ranges or model parameters. Use a separate
-    output directory or use_cache=False after changing them. Loading a legacy
-    monthly CSV may rewrite its period header; in memory it remains quarter.
+    The 16-character key includes the full supplied data/index/schema, resolved
+    schedule, column mapping, thresholds, priors, effective GLMM seed and package
+    version. Identical requests reuse an exact keyed CSV without rewriting it.
+    Changed requests retain separate files. Old date-only caches are ignored.
+    ``use_cache=False`` recomputes and atomically replaces only the matching
+    keyed file; failed fits/saves preserve any previous output. No manifest or
+    run history is written. Monthly periods remain ``quarter`` in memory and
+    ``month`` on disk. Hashing is conservative: unused columns/order also count.
 
     Args:
         df_raw: Input DataFrame
@@ -754,7 +765,10 @@ def load_or_track_movement(
         timestamp_col: Timestamp column name
         quarters: Period specification
         min_total_count: Minimum count threshold
+        decline_window_quarters: Inactivity window forwarded to tracking (default: 6)
         temporal_granularity: "quarterly" or "monthly"
+        vcp_p: Random effects prior scale (default: 3.5)
+        fe_p: Fixed effects prior scale (default: 3.0)
         output_dir: Cache directory (default: "results/csv")
         use_cache: Load from cache if available (default: True)
         return_path: If True, returns (df, csv_path) tuple. Default False returns just DataFrame.
@@ -764,6 +778,22 @@ def load_or_track_movement(
         If return_path=True, returns (DataFrame, csv_path) tuple.
     """
 
+    from ..core import glmm
+
+    period_schedule = normalize_period_schedule(
+        quarters, df_raw, timestamp_col, temporal_granularity=temporal_granularity,
+    )
+    key = compute_cache_key(df_raw, {
+        "entity_col": entity_col,
+        "timestamp_col": timestamp_col,
+        "period_schedule": [(label, pd.Timestamp(cutoff).isoformat()) for label, cutoff in period_schedule],
+        "min_total_count": min_total_count,
+        "decline_window_quarters": decline_window_quarters,
+        "temporal_granularity": temporal_granularity,
+        "vcp_p": vcp_p,
+        "fe_p": fe_p,
+        "glmm_seed": glmm._GLMM_RANDOM_SEED,
+    })
     csv_path: str | None = None
     if use_cache:
         csv_path = latest_artifact_csv(
@@ -771,30 +801,24 @@ def load_or_track_movement(
             entity_name,
             output_dir,
             temporal_granularity=temporal_granularity,
+            key=key,
         )
         if csv_path:
-            movement_df = pd.read_csv(csv_path)
-            if temporal_granularity == "monthly":
-                # New-style monthly CSVs use a friendlier ``month``
-                # column on disk; normalize to ``quarter`` in-memory
-                # for compatibility with existing code.
-                if (
-                    "month" in movement_df.columns
-                    and "quarter" not in movement_df.columns
-                ):
+            try:
+                movement_df = pd.read_csv(
+                    csv_path, float_precision="round_trip",
+                    converters={"entity": str, "quarter": str, "month": str},
+                )
+                if temporal_granularity == "monthly" and "month" in movement_df.columns:
                     movement_df = movement_df.rename(columns={"month": "quarter"})
-
-                # Legacy monthly CSVs were written with a ``quarter``
-                # column. Treat that as ``month`` for users by
-                # rewriting the CSV header to ``month`` while keeping
-                # the in-memory schema unchanged.
-                elif (
-                    "quarter" in movement_df.columns
-                    and "month" not in movement_df.columns
-                ):
-                    month_df = movement_df.rename(columns={"quarter": "month"})
-                    month_df.to_csv(csv_path, index=False)
-                    movement_df = month_df.rename(columns={"month": "quarter"})
+                required = {"entity", "quarter", "period_x", "period_y", "period_quadrant", "global_quadrant"}
+                missing = sorted(required - set(movement_df.columns))
+                if missing:
+                    raise ValueError(f"Missing movement columns: {missing}")
+                for column in ("period_x", "period_y"):
+                    movement_df[column] = pd.to_numeric(movement_df[column], errors="raise")
+            except (OSError, ValueError) as exc:
+                raise ValueError(f"Cannot read movement cache {csv_path!r}; set use_cache=False to recompute") from exc
 
             if return_path:
                 return movement_df, csv_path
@@ -804,9 +828,12 @@ def load_or_track_movement(
         df_raw,
         entity_col=entity_col,
         timestamp_col=timestamp_col,
-        quarters=quarters,
+        quarters=period_schedule,
         min_total_count=min_total_count,
+        decline_window_quarters=decline_window_quarters,
         temporal_granularity=temporal_granularity,
+        vcp_p=vcp_p,
+        fe_p=fe_p,
     )
 
     # For monthly outputs, persist a friendlier "month" label on disk
@@ -821,6 +848,7 @@ def load_or_track_movement(
         entity_name=entity_name,
         temporal_granularity=temporal_granularity,
         output_dir=output_dir,
+        key=key,
     )
 
     if return_path:

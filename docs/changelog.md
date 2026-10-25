@@ -3,6 +3,13 @@
 Selected release notes are listed below. Current imports, defaults and
 limitations are documented in the [API reference](api-reference.md).
 
+## v0.7.3 (unreleased)
+
+- Add additive English/Indonesian localization for Matplotlib charts, static
+  saved-result exports, and the Plotly AutoViz workspace.
+- Add parallel Indonesian documentation while preserving English defaults,
+  saved-result schemas, analytical values, and chart geometry.
+
 ## v0.7.2 (2026-10-19)
 
 - Reuse movement caches by a 16-character data/settings fingerprint instead of

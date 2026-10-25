@@ -19,6 +19,7 @@ from typing import Any
 from urllib.parse import quote
 import webbrowser
 
+from .i18n import catalog
 from .results import ResultBundle, ResultValidationError, import_results_csv, strict_json_loads
 from .views import prepare_bundle, resolve_settings
 
@@ -43,6 +44,7 @@ def build_html(bundle: ResultBundle, settings=None, *, service_mode: bool = Fals
                     "__FAVICON__": "data:image/svg+xml," + quote(favicon, safe=""),
                     "__STYLE__": web.joinpath("style.css").read_text(encoding="utf-8"),
                     "__APP__": web.joinpath("app.js").read_text(encoding="utf-8"),
+                    "__I18N__": _embedded(catalog()),
                     "__DATA__": _embedded({"bundle": bundle.to_dict(), "prepared": prepared}),
                     "__INITIAL__": _embedded(resolved.to_dict()),
                     "__SERVICE__": "true" if service_mode else "false"}

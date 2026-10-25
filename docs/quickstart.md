@@ -44,6 +44,11 @@ results = px.fit_priority_matrix(
 px.plot_priority_matrix(results, entity_name="Service", plot_path="matrix.png")
 ```
 
+All three plotting functions accept `language="id"` for Indonesian labels. The
+default remains English. Localization changes rendered text only; it does not
+translate entity identifiers, result columns, quadrant codes, risk keys or
+saved analytical values.
+
 ## Full Workflow
 
 ```python

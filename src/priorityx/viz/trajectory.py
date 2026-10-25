@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from priorityx.core.quadrants import get_quadrant_label
+from priorityx.i18n import quadrant_label, text as translate, validate_language
 from priorityx.utils.helpers import save_dataframe_to_csv
 
 # suppress noisy FancyArrowPatch fallback warnings from annotate/adjustments
@@ -43,6 +43,7 @@ def plot_entity_trajectories(
     highlight_top_n: Optional[int] = None,
     highlight_by: str = "trajectory_distance",
     recent_periods: Optional[int] = None,
+    language: str = "en",
 ) -> plt.Figure:
     """
     Visualize entity trajectories through priority space.
@@ -76,6 +77,7 @@ def plot_entity_trajectories(
         highlight_by: Selection method - "trajectory_distance" (euclidean path length)
                      or "total_movement" (sum of |x| + |y| deltas). Default: "trajectory_distance"
         recent_periods: Limit trajectory to last N periods (default: None = all periods)
+        language: Display language (``"en"`` by default or ``"id"`` for Indonesian).
 
     Returns:
         Matplotlib figure, or None when the selected input is empty.
@@ -91,6 +93,7 @@ def plot_entity_trajectories(
         ...     max_entities=5
         ... )
     """
+    language = validate_language(language)
     if movement_df.empty:
         print("No movement data to visualize")
         return None
@@ -202,7 +205,7 @@ def plot_entity_trajectories(
         "Q3": "#2ca02c",  # bottom-left quadrant
     }
     quadrant_display = {
-        q: get_quadrant_label(q, x_label="Volume", y_label="Growth")
+        q: quadrant_label(language, q, x_label=translate(language, "volume"), y_label=translate(language, "growth"))
         for q in ["Q1", "Q2", "Q3", "Q4"]
     }
 
@@ -386,12 +389,12 @@ def plot_entity_trajectories(
     # The caller owns the entity label. Do not infer a domain from the name.
     axis_fontsize = 15
     ylabel = entity_name
-    ax.set_xlabel("Volume (Relative)", fontsize=axis_fontsize)
-    ax.set_ylabel("Growth Rate (Relative)", fontsize=axis_fontsize)
+    ax.set_xlabel(translate(language, "volume_relative"), fontsize=axis_fontsize)
+    ax.set_ylabel(translate(language, "growth_relative"), fontsize=axis_fontsize)
 
     # Only set title if not empty string
     if title is None:
-        title = f"{ylabel} Entity Trajectory"
+        title = f"{ylabel} {translate(language, 'entity_trajectory')}"
     if title:  # Skip if empty string
         ax.set_title(title, fontsize=17, fontweight="bold", pad=20)
 
@@ -415,7 +418,7 @@ def plot_entity_trajectories(
             loc=legend_loc,
             frameon=False,
             fontsize=legend_fontsize,
-            title="Quadrants",
+            title=translate(language, "quadrants"),
             title_fontsize=legend_fontsize,
         )
 

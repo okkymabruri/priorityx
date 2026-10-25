@@ -96,6 +96,9 @@ paths within the same period window. See [the saved-result selection contract](s
 
 **Layout** opens a settings dialog and controls equal panel dimensions. Closing
 the dialog retains unapplied edits; a visible reminder keeps them discoverable.
+The **Language** selector chooses English (the default) or Bahasa Indonesia for
+chart labels, legends, hover text, tables and chart-adjacent status text. The
+choice is stored with view settings and included in offline HTML exports.
 The timeline fits the panel width
 automatically: names wrap, period labels shorten when needed and crowded event
 groups use separate lanes within their entity row. Every YTD period and event

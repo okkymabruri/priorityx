@@ -526,6 +526,10 @@ Creates scatter plot of priority matrix.
 `results_df` uses `entity`, `x_score`, `y_score`, `count` and `quadrant` (or
 explicit `x_col` / `y_col` mappings), rather than legacy random-effect names.
 
+Pass `language="id"` for Indonesian titles, axes and legends. English is the
+default. Caller-provided titles and axis labels, entity names, saved values and
+machine-readable quadrant codes remain unchanged.
+
 **Path Parameters:**
 
 - `plot_path`: Path to save plot (accepts Path or str). If provided, saves plot.
@@ -568,6 +572,9 @@ algorithmic classes are not verified distress.
 Keep full movement history in original chronological order for class calculation.
 `filter_risk_levels` filters saved `risk_level`, not computed event class.
 The original plotting API does not impose AutoViz's YTD display window.
+
+`language="id"` translates the chart text and event-class legend while keeping
+the transition data, `Q1`–`Q4` codes, risk keys and `*X`/`*Y`/`*XY` suffixes.
 
 `entity_name` is a caller-provided display label. It is used unchanged for the
 entity axis and generated title; PriorityX does not infer a domain from its text.
@@ -675,6 +682,8 @@ the helper trims each path after its last positive-count period.
 Saved tables may already contain `last_active_quarter`; the helper derives the
 activity boundary without colliding with that metadata. The caller's full saved
 table remains unchanged, and AutoViz uses the same saved history independently.
+Pass `language="id"` for Indonesian axes, titles and quadrant legends without
+changing trajectory coordinates or panel dimensions.
 
 **Parameters:**
 

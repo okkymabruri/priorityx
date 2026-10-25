@@ -14,6 +14,7 @@ from matplotlib.text import Annotation, Text
 from matplotlib.transforms import Bbox
 import pandas as pd
 
+from priorityx.i18n import text as translate, validate_language
 from priorityx.tracking.transitions import classify_priority
 
 # suppress noisy FancyArrowPatch fallback warnings from annotate/adjustments
@@ -59,7 +60,7 @@ def _leader_segment(anchor, box):
     )])
 
 
-def _make_transition_key(ax, example):
+def _make_transition_key(ax, example, language="en"):
     """Explain compact notation using one displayed event, without extra data marks."""
     source, destination, suffix, color = example
 
@@ -73,14 +74,16 @@ def _make_transition_key(ax, example):
     token = HPacker(children=[text(f"{source}→"), marker, text(suffix)],
                     align="center", pad=0, sep=1)
     before = VPacker(children=[
-        text("Read an event", bold=True), token,
-        text(f"From quadrant {source} to quadrant {destination}.\n"
-             "Digit inside marker = destination.\n"
-             "Color = event class;\nsuffix = spike indicator."),
+        text(translate(language, "read_event"), bold=True), token,
+        text(f"{translate(language, 'event_from_to', source=source, destination=destination)}\n"
+             f"{translate(language, 'event_digit')}\n"
+             f"{translate(language, 'event_color')}\n{translate(language, 'event_suffix')}"),
     ], align="left", pad=0, sep=6)
     after = VPacker(children=[
-        text("Suffix · score-axis spike indicator", bold=True),
-        text("*$^X$    X-axis spike\n*$^Y$    Y-axis spike\n*$^{XY}$  Both axes"),
+        text(translate(language, "suffix"), bold=True),
+        text(f"*$^X$    {translate(language, 'x_spike')}\n"
+             f"*$^Y$    {translate(language, 'y_spike')}\n"
+             f"*$^{{XY}}$  {translate(language, 'both_axes')}"),
     ], align="left", pad=0, sep=6)
     for content in (before, after):
         panel = AnnotationBbox(content, (0, 0), xycoords=ax.figure.transFigure,
@@ -95,7 +98,7 @@ def _key_boxes(ax, renderer):
             if artist.get_gid() == "priorityx-transition-key" and artist.get_visible()]
 
 
-def _position_transition_key(ax, renderer):
+def _position_transition_key(ax, renderer, language="en"):
     """Fit the reading example and suffix key around the caller's final legend."""
     legend = ax.get_legend()
     if legend is None or not legend.get_visible():
@@ -105,9 +108,10 @@ def _position_transition_key(ax, renderer):
     if not panels:
         return
     title = legend.get_title().get_text()
-    if not title.startswith("Color · "):
-        title = {"Priority": "event class", "Algorithmic event class": "algorithmic event class"}.get(title, title)
-        legend.set_title(f"Color · {title}")
+    if not title.startswith("Color · ") and not title.startswith("Warna · "):
+        title = translate(language, "event_class")
+        prefix = translate(language, "color")
+        legend.set_title(f"{prefix} · {title}")
     legend.get_title().set_fontsize(12)
     legend.get_title().set_fontweight("bold")
     legend.set_alignment("left")
@@ -193,7 +197,7 @@ def _compact_collisions(ax, labels, renderer):
     return unresolved
 
 
-def layout_transition_labels(fig: plt.Figure) -> plt.Figure:
+def layout_transition_labels(fig: plt.Figure, language: str = "en") -> plt.Figure:
     """Place timeline text deterministically without moving event markers.
 
     Call again after changing titles, ticks, legends, figure size or DPI, and
@@ -211,6 +215,7 @@ def layout_transition_labels(fig: plt.Figure) -> plt.Figure:
     ``figsize`` or separate ``entity_filter`` pages. A warning means the chart
     still requires review; the helper never silently changes entity selection.
     """
+    language = validate_language(language)
     # Reset first so repeated calls do not accumulate offsets or leader lines.
     for ax in fig.axes:
         for text in ax.texts:
@@ -235,7 +240,7 @@ def layout_transition_labels(fig: plt.Figure) -> plt.Figure:
                       or text.get_gid() == "priorityx-transition-suffix")]
         if inline:
             _pad_compact_labels(ax, inline, renderer)
-        _position_transition_key(ax, renderer)
+        _position_transition_key(ax, renderer, language)
     fig.canvas.draw()
     unit = renderer.points_to_pixels(1)
     # Keep a small measured clearance around text.  A larger fixed gap can
@@ -392,6 +397,7 @@ def plot_transition_timeline(
     movement_df: Optional[pd.DataFrame] = None,
     close_fig: bool = False,
     label_style: Literal["compact", "quadrant"] = "compact",
+    language: str = "en",
 ) -> plt.Figure:
     """
     Visualize transition timeline as heatmap.
@@ -425,6 +431,7 @@ def plot_transition_timeline(
         close_fig: Close the figure before returning (set True if you see duplicate inline renders)
         label_style: "compact" (default) puts the destination digit in its event
                      marker, e.g. 3→②; "quadrant" retains Q3→Q2 notation.
+        language: Display language (``"en"`` by default or ``"id"`` for Indonesian).
 
     Returns:
         Matplotlib figure
@@ -440,6 +447,7 @@ def plot_transition_timeline(
         ...     max_entities=10
         ... )
     """
+    language = validate_language(language)
     if label_style not in ("compact", "quadrant"):
         raise ValueError("label_style must be 'compact' or 'quadrant'")
     if transitions_df.empty:
@@ -755,10 +763,10 @@ def plot_transition_timeline(
 
     # build legend
     priority_defs = [
-        (1, "#d62728", "Crisis"),
-        (2, "#ff7f0e", "Investigate"),
-        (3, "#ffdd57", "Monitor"),
-        (4, "#2ca02c", "Low"),
+        (1, "#d62728", translate(language, "class_crisis")),
+        (2, "#ff7f0e", translate(language, "class_investigate")),
+        (3, "#ffdd57", translate(language, "class_monitor")),
+        (4, "#2ca02c", translate(language, "class_low")),
     ]
 
     legend_elements = []
@@ -775,7 +783,7 @@ def plot_transition_timeline(
             handles=legend_elements,
             loc="center left",
             bbox_to_anchor=(1.02, 0.5),
-            title="Priority",
+            title=translate(language, "priority"),
             fontsize=legend_fontsize,
             title_fontsize=legend_fontsize,
             frameon=False,
@@ -784,20 +792,22 @@ def plot_transition_timeline(
         if key_examples:
             # Prefer a complete spike example; ties retain input order.
             example = max(key_examples, key=lambda item: ("XY" in item[2], item[0] == "1", bool(item[2])))
-            _make_transition_key(ax, example)
+            _make_transition_key(ax, example, language)
         else:
-            ax.text(1.02, 0.25, "*$^Y$ = Y-axis spike\n*$^X$ = X-axis spike",
+            ax.text(1.02, 0.25,
+                    f"*$^Y$ = {translate(language, 'y_spike')}\n"
+                    f"*$^X$ = {translate(language, 'x_spike')}",
                     transform=ax.transAxes, fontsize=12, ha="left", va="top")
 
     # set labels
     xlabel_map = {
-        "quarterly": "Quarter",
-        "semiannual": "Semester",
-        "yearly": "Year",
-        "monthly": "Month",
+        "quarterly": translate(language, "quarter"),
+        "semiannual": translate(language, "semester"),
+        "yearly": translate(language, "year"),
+        "monthly": translate(language, "month"),
     }
     axis_fontsize = 15
-    ax.set_xlabel(xlabel_map.get(x_axis_granularity, "Period"), fontsize=axis_fontsize)
+    ax.set_xlabel(xlabel_map.get(x_axis_granularity, translate(language, "period")), fontsize=axis_fontsize)
     
     # The caller owns the entity label. Do not infer a domain from the name.
     ylabel = entity_name
@@ -806,13 +816,13 @@ def plot_transition_timeline(
 
     # Only set title if not empty
     if title is None:
-        title = f"{ylabel} Transition Timeline"
+        title = f"{ylabel} {translate(language, 'transition_timeline_title')}"
     if title:  # Skip if empty string
         ax.set_title(title, fontsize=17, fontweight="bold", pad=20)
 
     ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
     plt.tight_layout()
-    layout_transition_labels(fig)
+    layout_transition_labels(fig, language)
 
     # determine actual save paths
     actual_plot_path: Optional[Path] = None

@@ -14,6 +14,7 @@ from matplotlib.figure import Figure
 from matplotlib.text import Text
 from matplotlib.transforms import Bbox
 
+from priorityx.i18n import text as translate, validate_language
 from priorityx.results import ResultValidationError
 from priorityx.views import LayoutReport, ViewSettings
 
@@ -100,7 +101,8 @@ def _point_labels(fig, ax, labels):
     return _issues(fig, ax, labels, points)
 
 
-def _build(dataset, settings, family, size):
+def _build(dataset, settings, family, size, language=None):
+    language = validate_language(language if language is not None else settings.language)
     fig = Figure(figsize=size, dpi=settings.dpi)
     FigureCanvasAgg(fig)
     ax = fig.subplots()
@@ -121,8 +123,8 @@ def _build(dataset, settings, family, size):
                                 xytext=(9, 9), textcoords="offset points", fontsize=12,
                                 fontweight="bold" if row["entity"] == member else "normal")
             labels.append(label)
-        ax.set_xlabel("Level", fontsize=12)
-        ax.set_ylabel("Trend", fontsize=12)
+        ax.set_xlabel(translate(language, "level"), fontsize=12)
+        ax.set_ylabel(translate(language, "trend"), fontsize=12)
     elif family == "paths":
         names = [member] if member else dataset["defaultPaths"]
         for name in names:
@@ -137,8 +139,8 @@ def _build(dataset, settings, family, size):
                                       (path[-1]["x"], path[-1]["y"]),
                                       xytext=(9, 9), textcoords="offset points", fontsize=12,
                                       color="#26382c", arrowprops={"arrowstyle": "-", "color": "#718176", "lw": .7}))
-        ax.set_xlabel("Level", fontsize=12)
-        ax.set_ylabel("Trend", fontsize=12)
+        ax.set_xlabel(translate(language, "level"), fontsize=12)
+        ax.set_ylabel(translate(language, "trend"), fontsize=12)
     else:
         periods = dataset["periods"]
         events = [e for e in dataset["events"] if e["period"] in periods and e["entity"] in dataset["rows"]]
@@ -166,8 +168,10 @@ def _build(dataset, settings, family, size):
         ax.grid(axis="x", alpha=.2)
         hidden = len(dataset["events"]) - len(events)
         fig.text(.24, .35 / size[1], f"YTD through {dataset['asOf']} · {hidden} earlier events outside YTD", fontsize=12)
-        fig.text(.24, .12 / size[1], "*X / *Y / *XY: score-axis spike", fontsize=12)
-    ax.set_title({"matrix": "Quadrant matrix", "timeline": "Transition timeline", "paths": "Trajectories"}[family],
+        fig.text(.24, .12 / size[1], f"*X / *Y / *XY: {translate(language, 'suffix')}", fontsize=12)
+    ax.set_title({"matrix": translate(language, "chart_matrix"),
+                  "timeline": translate(language, "chart_timeline"),
+                  "paths": translate(language, "chart_trajectories")}[family],
                  fontsize=14, pad=38 if family == "timeline" else 16)
     if family != "timeline":
         ax.axhline(0, color="#aaaaaa", linewidth=.7)
@@ -181,7 +185,10 @@ def _build(dataset, settings, family, size):
     else:
         from matplotlib.lines import Line2D
         ax.legend(handles=[Line2D([], [], color=_COLORS[i], marker="o", linestyle="", label=name)
-                           for i, name in enumerate(["Crisis", "Investigate", "Monitor", "Low"], 1)],
+                           for i, name in enumerate([translate(language, "class_crisis"),
+                                                     translate(language, "class_investigate"),
+                                                     translate(language, "class_monitor"),
+                                                     translate(language, "class_low")], 1)],
                   ncol=4, fontsize=12, frameon=False, loc="lower left", borderaxespad=0,
                   bbox_transform=fig.transFigure, bbox_to_anchor=(.24, .60 / size[1]))
         unresolved = _issues(fig, ax, labels, [])
@@ -207,14 +214,20 @@ def render_static(dataset: dict[str, Any], settings: ViewSettings, family: str):
     if manual:
         sizes = [(settings.static_width or 14, settings.static_height or base_height)]
     fig = None
+    # Select the bounded automatic size from the English baseline so a longer
+    # translation cannot silently change the chart dimensions.
+    baseline_size = sizes[-1]
+    baseline_unresolved = 0
     for size in sizes:
         if size[0] * size[1] * settings.dpi ** 2 > 32000000:
             raise ResultValidationError("Print dimensions exceed 32 million pixels at this DPI; lower DPI or choose smaller dimensions.")
-        if fig is not None:
-            fig.clear()
-        fig, unresolved = _build(dataset, settings, family, size)
-        if not unresolved:
+        baseline, baseline_unresolved = _build(dataset, settings, family, size, "en")
+        baseline.clear()
+        baseline_size = size
+        if not baseline_unresolved:
             break
+    fig, unresolved = _build(dataset, settings, family, baseline_size, settings.language)
+    size = baseline_size
     warnings = list(dataset.get("warnings", []))
     if unresolved:
         warnings.append(f"{unresolved} labels remain overlapping or outside the plot; all values and labels are retained. Choose a wider/taller static profile.")

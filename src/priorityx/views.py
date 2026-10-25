@@ -14,6 +14,7 @@ from typing import Any
 import pandas as pd
 
 from .results import ResultBundle, ResultDataset, ResultValidationError, _period_column, _PERIOD
+from .i18n import validate_language
 from .tracking.transitions import classify_priority
 
 VIEW_SCHEMA_VERSION = 1
@@ -259,6 +260,7 @@ class ViewSettings:
     static_width: float | None = None
     static_height: float | None = None
     dpi: int = 150
+    language: str = "en"
     views: dict[str, Any] = field(default_factory=dict)
     schema_version: int = VIEW_SCHEMA_VERSION
 
@@ -290,6 +292,10 @@ class ViewSettings:
             raise ResultValidationError("manual print size requires both width and height")
         if not isinstance(settings.entity_type, str) or not isinstance(settings.member, str):
             raise ResultValidationError("entity_type and member must be strings")
+        try:
+            settings.language = validate_language(settings.language)
+        except ValueError as exc:
+            raise ResultValidationError(str(exc)) from exc
         if settings.cadence not in ("monthly", "quarterly"):
             raise ResultValidationError("cadence must be monthly or quarterly")
         if not isinstance(settings.views, dict):

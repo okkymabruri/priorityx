@@ -9,7 +9,7 @@ import matplotlib.ticker as ticker
 import pandas as pd
 from matplotlib.lines import Line2D
 
-from priorityx.core.quadrants import get_quadrant_label
+from priorityx.i18n import quadrant_label, text as translate, validate_language
 
 # try to import adjustText for label positioning
 try:
@@ -60,6 +60,7 @@ def plot_priority_matrix(
     y_label: Optional[str] = None,
     bubble_scale: float = 0.3,
     legend_loc: str = "lower right",
+    language: str = "en",
 ) -> plt.Figure:
     """
     Visualize priority matrix as scatter plot.
@@ -89,6 +90,7 @@ def plot_priority_matrix(
         csv_dir: [DEPRECATED] Use csv_path instead. Output directory for CSV files.
         temporal_granularity: Time granularity ('quarterly', 'yearly', 'semiannual', 'monthly')
         close_fig: Close the figure before returning (set True if you see duplicate inline renders)
+        language: Display language (``"en"`` by default or ``"id"`` for Indonesian).
 
     Returns:
         Matplotlib figure
@@ -105,6 +107,7 @@ def plot_priority_matrix(
         ...     csv_path=CSV_DIR / "data.csv",
         ... )
     """
+    language = validate_language(language)
     # make a copy to avoid modifying original
     df = results_df.copy()
 
@@ -184,10 +187,10 @@ def plot_priority_matrix(
     # Labels used in quadrant descriptions. If custom axis labels are
     # provided, reuse them; otherwise default to generic Volume/Growth
     # wording for backward compatibility.
-    quadrant_x_label = x_label or "Volume"
-    quadrant_y_label = y_label or "Growth"
+    quadrant_x_label = x_label or translate(language, "volume")
+    quadrant_y_label = y_label or translate(language, "growth")
     quadrant_display = {
-        q: get_quadrant_label(q, x_label=quadrant_x_label, y_label=quadrant_y_label)
+        q: quadrant_label(language, q, x_label=quadrant_x_label, y_label=quadrant_y_label)
         for q in ["Q1", "Q2", "Q3", "Q4"]
     }
 
@@ -386,8 +389,8 @@ def plot_priority_matrix(
 
     # set labels
     axis_fontsize = 15
-    default_x_axis = "Volume (Relative)"
-    default_y_axis = "Growth Rate (Relative)"
+    default_x_axis = translate(language, "volume_relative")
+    default_y_axis = translate(language, "growth_relative")
     plt.xlabel(x_label or default_x_axis, fontsize=axis_fontsize)
     plt.ylabel(y_label or default_y_axis, fontsize=axis_fontsize)
 
@@ -396,7 +399,7 @@ def plot_priority_matrix(
         pretty_name = entity_name.strip()
         if "_" in pretty_name:
             pretty_name = pretty_name.replace("_", " ").title()
-        title = f"{pretty_name} Priority Matrix"
+        title = f"{pretty_name} {translate(language, 'priority_matrix_title')}"
     plt.title(title, fontsize=17, fontweight="bold", pad=20)
 
     # place legend
@@ -406,7 +409,7 @@ def plot_priority_matrix(
             handles=legend_elements,
             loc=legend_loc,
             frameon=False,
-            title="Quadrants",
+            title=translate(language, "quadrants"),
             fontsize=legend_fontsize,
             title_fontsize=legend_fontsize,
         )
@@ -426,7 +429,7 @@ def plot_priority_matrix(
         ax.text(
             xlim[0] + (xlim[1] - xlim[0]) * 0.02,
             ylim[0] + (ylim[1] - ylim[0]) * 0.02,
-            f"Bubble size represents {bubble_col}",
+            translate(language, "bubble_size", column=bubble_col),
             ha="left",
             va="bottom",
             fontsize=10,

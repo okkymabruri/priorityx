@@ -35,6 +35,18 @@ nav:
   - Priority Classification: priority_classification.md
   - Output Naming: output_naming.md
   - Changelog: changelog.md
+  - Bahasa Indonesia:
+      - Beranda: id/index.md
+      - Instalasi: id/installation.md
+      - Contoh AutoViz: id/autoviz-example.md
+      - Mulai Cepat: id/quickstart.md
+      - Referensi API: id/api-reference.md
+      - Bundel Hasil: id/saved-results.md
+      - Workspace Lokal: id/app.md
+      - Metodologi: id/methodology.md
+      - Klasifikasi Prioritas: id/priority_classification.md
+      - Penamaan Output: id/output_naming.md
+      - Changelog: id/changelog.md
 
 markdown_extensions:
   - tables
